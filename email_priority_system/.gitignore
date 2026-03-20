@@ -1,0 +1,39 @@
+# Python
+ml/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.Python
+ml/.pytest_cache/
+ml/hf_cache/
+
+# Rails
+rails_app/tmp/
+rails_app/log/
+rails_app/storage/
+rails_app/.bundle/
+rails_app/vendor/bundle/
+rails_app/db/*.sqlite3
+rails_app/db/*.sqlite3-*
+
+# Secrets (never commit)
+rails_app/tmp/local_secret.txt
+.env
+.env.*
+
+# Logs
+*.log
+ml/pipeline.log
+
+# ML data & large artefacts (regenerate via pipeline; keep repo source-only)
+ml/data/raw/
+ml/data/processed/
+ml/models/**
+!ml/models/.gitkeep
+
+# Documentation (per project preference: code repo without docs)
+*.md
+
+# OS / IDE
+.DS_Store
+.idea/
+*.swp
