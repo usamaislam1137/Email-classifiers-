@@ -1,0 +1,75 @@
+/*
+ * Email Priority Classification System - Custom Styles
+ * Rails 7.2 / Bootstrap 5.3
+ *= require_tree .
+ *= require_self
+ */
+
+/* -- Priority badge / border colour helpers ----------------------- */
+.priority-critical  { border-left: 5px solid #dc3545 !important; }
+.priority-high      { border-left: 5px solid #ffc107 !important; }
+.priority-normal    { border-left: 5px solid #0d6efd !important; }
+.priority-low       { border-left: 5px solid #6c757d !important; }
+
+/* -- Stat cards on the dashboard ---------------------------------- */
+.stat-card {
+  border-radius: .75rem;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.12) !important;
+}
+.stat-card .stat-icon {
+  font-size: 2.5rem;
+  opacity: .15;
+  position: absolute;
+  right: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* -- Email form --------------------------------------------------- */
+.email-form-card {
+  border-radius: 1rem;
+}
+.email-form-card .card-header {
+  border-radius: 1rem 1rem 0 0;
+}
+
+/* -- Result priority badge (large, on show page) ------------------ */
+.priority-display {
+  font-size: 4rem;
+  line-height: 1;
+}
+
+/* -- Confidence progress bar tweaks ------------------------------- */
+.progress { border-radius: 20px; }
+.progress-bar { border-radius: 20px; transition: width .6s ease; }
+
+/* -- History table ------------------------------------------------ */
+.table > tbody > tr:hover { background-color: rgba(13,110,253,.04); }
+
+/* -- API status badge animation ----------------------------------- */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .5; }
+}
+.badge-pulsing { animation: pulse 2s infinite; }
+
+/* -- SHAP chart caption ------------------------------------------- */
+.shap-caption {
+  font-size: .75rem;
+  color: #6c757d;
+}
+
+/* -- Responsive body textarea -------------------------------------- */
+textarea#email_classification_body {
+  min-height: 180px;
+  font-family: monospace;
+  font-size: .85rem;
+}
+
+/* -- General card rounded corners ---------------------------------- */
+.card { border-radius: .75rem; }
+.card-header { border-radius: .75rem .75rem 0 0 !important; }
