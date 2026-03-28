@@ -1,0 +1,231 @@
+<% content_for :title, "Classify Email" %>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <!-- Page header -->
+    <div class="mb-4">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><%= link_to "Dashboard", dashboard_path %></li>
+          <li class="breadcrumb-item active">Classify Email</li>
+        </ol>
+      </nav>
+      <h1 class="h2 fw-bold mb-1">
+        <i class="bi bi-envelope-plus text-primary me-2"></i>Classify an Email
+      </h1>
+      <p class="text-muted">Paste or type an email below to classify its priority using ML.</p>
+    </div>
+
+    <!-- Error message -->
+    <% if @error %>
+      <div class="alert alert-danger d-flex align-items-start mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2 mt-1 flex-shrink-0"></i>
+        <div>
+          <strong>Classification failed:</strong><br>
+          <%= @error %>
+          <div class="mt-2 small">
+            Make sure the Python ML API is running:
+            <code class="bg-light px-1 rounded">python flask_api.py</code>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Validation errors -->
+    <% if @classification.errors.any? %>
+      <div class="alert alert-danger mb-4">
+        <strong><%= @classification.errors.count %> error(s):</strong>
+        <ul class="mb-0 mt-1">
+          <% @classification.errors.full_messages.each do |msg| %>
+            <li><%= msg %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <!-- Main form -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <%= form_with model: @classification, url: classifications_path,
+                      method: :post, local: true, class: "needs-validation" do |f| %>
+
+          <!-- Sender -->
+          <div class="mb-3">
+            <%= f.label :sender, class: "form-label fw-semibold" do %>
+              <i class="bi bi-person-fill me-1"></i>Sender Email <span class="text-danger">*</span>
+            <% end %>
+            <%= f.email_field :sender,
+                              class: "form-control #{'is-invalid' if @classification.errors[:sender].any?}",
+                              placeholder: "sender@example.com",
+                              required: true,
+                              autocomplete: "off" %>
+            <% if @classification.errors[:sender].any? %>
+              <div class="invalid-feedback"><%= @classification.errors[:sender].first %></div>
+            <% end %>
+          </div>
+
+          <!-- Recipients -->
+          <div class="mb-3">
+            <%= f.label :recipients, class: "form-label fw-semibold" do %>
+              <i class="bi bi-people-fill me-1"></i>Recipients
+              <span class="text-muted fw-normal">(comma-separated)</span>
+            <% end %>
+            <%= f.text_field :recipients,
+                             class: "form-control",
+                             placeholder: "recipient1@example.com, recipient2@example.com",
+                             autocomplete: "off" %>
+          </div>
+
+          <!-- Subject -->
+          <div class="mb-3">
+            <%= f.label :subject, class: "form-label fw-semibold" do %>
+              <i class="bi bi-card-heading me-1"></i>Subject <span class="text-danger">*</span>
+            <% end %>
+            <%= f.text_field :subject,
+                             class: "form-control #{'is-invalid' if @classification.errors[:subject].any?}",
+                             placeholder: "Email subject line",
+                             required: true %>
+            <% if @classification.errors[:subject].any? %>
+              <div class="invalid-feedback"><%= @classification.errors[:subject].first %></div>
+            <% end %>
+          </div>
+
+          <!-- Body -->
+          <div class="mb-3">
+            <%= f.label :body, class: "form-label fw-semibold" do %>
+              <i class="bi bi-text-paragraph me-1"></i>Email Body <span class="text-danger">*</span>
+            <% end %>
+            <%= f.text_area :body,
+                            class: "form-control #{'is-invalid' if @classification.errors[:body].any?}",
+                            rows: 10,
+                            placeholder: "Paste or type the email body here...",
+                            required: true,
+                            id: "emailBody" %>
+            <% if @classification.errors[:body].any? %>
+              <div class="invalid-feedback"><%= @classification.errors[:body].first %></div>
+            <% end %>
+            <div class="form-text" id="charCount">0 characters</div>
+          </div>
+
+          <!-- Date (optional) -->
+          <div class="mb-4">
+            <%= f.label :date, class: "form-label fw-semibold" do %>
+              <i class="bi bi-calendar3 me-1"></i>Date / Time
+              <span class="text-muted fw-normal">(optional - defaults to now)</span>
+            <% end %>
+            <%= f.datetime_local_field :date,
+                                       class: "form-control",
+                                       value: DateTime.now.strftime("%Y-%m-%dT%H:%M") %>
+          </div>
+
+          <!-- Submit -->
+          <div class="d-grid">
+            <%= f.submit "Classify Email",
+                         class: "btn btn-primary btn-lg",
+                         data: { disable_with: "Classifying..." } %>
+          </div>
+
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Priority level reference card -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent border-0 pt-3">
+        <h6 class="mb-0"><i class="bi bi-info-circle me-1"></i>Priority Level Reference</h6>
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-sm-6 col-md-3">
+            <div class="p-3 rounded border border-danger bg-danger bg-opacity-10 h-100">
+              <div class="fw-bold text-danger mb-1">Red Critical</div>
+              <small class="text-muted">Urgent, ASAP, emergency - immediate action required.</small>
+            </div>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <div class="p-3 rounded border border-warning bg-warning bg-opacity-10 h-100">
+              <div class="fw-bold text-warning mb-1">Yellow High</div>
+              <small class="text-muted">Important deadlines, meeting requests, EOD responses.</small>
+            </div>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <div class="p-3 rounded border border-primary bg-primary bg-opacity-10 h-100">
+              <div class="fw-bold text-primary mb-1">Blue Normal</div>
+              <small class="text-muted">Standard business emails without urgency markers.</small>
+            </div>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <div class="p-3 rounded border border-secondary bg-secondary bg-opacity-10 h-100">
+              <div class="fw-bold text-secondary mb-1"> Low</div>
+              <small class="text-muted">Newsletters, FYIs, automated notifications, digests.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sample emails -->
+    <% if @sample_emails %>
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-transparent border-0 pt-3">
+          <h6 class="mb-0"><i class="bi bi-lightning me-1"></i>Try a Sample Email</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2">
+            <% @sample_emails.each_with_index do |sample, i| %>
+              <button type="button"
+                      class="btn btn-outline-secondary btn-sm sample-btn"
+                      data-sender="<%= sample[:sender] %>"
+                      data-subject="<%= sample[:subject] %>"
+                      data-body="<%= sample[:body] %>">
+                Sample <%= i + 1 %>: <%= sample[:subject].truncate(40) %>
+              </button>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+  </div><!-- /col -->
+</div><!-- /row -->
+
+<% content_for :page_scripts do %>
+  <script>
+    // Character counter
+    const bodyField = document.getElementById("emailBody");
+    const charCount = document.getElementById("charCount");
+    if (bodyField) {
+      function updateCount() {
+        charCount.textContent = bodyField.value.length.toLocaleString() + " characters";
+      }
+      bodyField.addEventListener("input", updateCount);
+      updateCount();
+    }
+
+    // Sample email fill-in
+    document.querySelectorAll(".sample-btn").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        document.querySelector("[name='email_classification[sender]']").value   = btn.dataset.sender;
+        document.querySelector("[name='email_classification[subject]']").value  = btn.dataset.subject;
+        document.querySelector("[name='email_classification[body]']").value     = btn.dataset.body;
+        if (charCount) charCount.textContent = btn.dataset.body.length.toLocaleString() + " characters";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+
+    // Bootstrap form validation
+    (function() {
+      var forms = document.querySelectorAll(".needs-validation");
+      Array.prototype.slice.call(forms).forEach(function(form) {
+        form.addEventListener("submit", function(event) {
+          if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          form.classList.add("was-validated");
+        }, false);
+      });
+    })();
+  </script>
+<% end %>

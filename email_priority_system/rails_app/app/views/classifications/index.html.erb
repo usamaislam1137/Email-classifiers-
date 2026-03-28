@@ -1,0 +1,85 @@
+<% content_for :title, "Classification History" %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">
+    <i class="bi bi-clock-history me-2 text-primary"></i>Classification History
+  </h2>
+  <%= link_to new_classification_path, class: "btn btn-primary" do %>
+    <i class="bi bi-plus-circle me-1"></i>Classify New Email
+  <% end %>
+</div>
+
+<% if @classifications.any? %>
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th class="ps-4" style="width:110px">Priority</th>
+              <th>Subject</th>
+              <th>Sender</th>
+              <th style="width:110px">Confidence</th>
+              <th style="width:110px">Model</th>
+              <th style="width:140px">Classified At</th>
+              <th style="width:90px" class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @classifications.each do |c| %>
+              <tr>
+                <td class="ps-4">
+                  <span class="badge bg-<%= c.priority_color %> fs-7 px-3 py-2">
+                    <%= c.priority_icon %> <%= c.priority&.capitalize %>
+                  </span>
+                </td>
+                <td>
+                  <%= link_to truncate(c.subject, length: 60), classification_path(c),
+                              class: "text-decoration-none fw-semibold text-dark" %>
+                </td>
+                <td class="text-muted small"><%= truncate(c.sender, length: 35) %></td>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="progress flex-grow-1" style="height:8px">
+                      <div class="progress-bar bg-<%= c.priority_color %>"
+                           style="width:<%= (c.confidence.to_f * 100).round %>%"></div>
+                    </div>
+                    <small class="text-muted"><%= (c.confidence.to_f * 100).round %>%</small>
+                  </div>
+                </td>
+                <td><span class="badge bg-light text-dark border"><%= c.model_used %></span></td>
+                <td class="text-muted small"><%= c.created_at.strftime("%d %b %Y %H:%M") %></td>
+                <td class="text-center">
+                  <div class="btn-group btn-group-sm">
+                    <%= link_to classification_path(c), class: "btn btn-outline-primary",
+                                title: "View" do %>
+                      <i class="bi bi-eye"></i>
+                    <% end %>
+                    <%= link_to classification_path(c),
+                                data: { turbo_method: :delete, turbo_confirm: "Delete this?" },
+                                class: "btn btn-outline-danger", title: "Delete" do %>
+                      <i class="bi bi-trash"></i>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer text-muted small">
+      Showing <%= @classifications.count %> most recent classifications
+    </div>
+  </div>
+
+<% else %>
+  <div class="text-center py-5">
+    <i class="bi bi-inbox display-1 text-muted"></i>
+    <h4 class="mt-3 text-muted">No classifications yet</h4>
+    <p class="text-muted">Start by classifying your first email</p>
+    <%= link_to new_classification_path, class: "btn btn-primary mt-2" do %>
+      <i class="bi bi-plus-circle me-1"></i>Classify an Email
+    <% end %>
+  </div>
+<% end %>
