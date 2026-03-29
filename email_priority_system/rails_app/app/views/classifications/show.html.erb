@@ -1,0 +1,246 @@
+<% content_for :title, "Classification Result" %>
+
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+
+    <!-- Priority Result Card -->
+    <div class="card border-<%= @classification.priority_color %> shadow mb-4">
+      <div class="card-header bg-<%= @classification.priority_color %> text-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">
+          <i class="bi bi-envelope-fill me-2"></i>Classification Result
+        </h4>
+        <span class="badge bg-white text-<%= @classification.priority_color %> fs-6">
+          <%= @classification.priority_icon %> <%= @classification.priority&.upcase %>
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="row g-4">
+          <!-- Left: Priority + Confidence -->
+          <div class="col-md-4 text-center border-end">
+            <div class="display-1 mb-2"><%= @classification.priority_icon %></div>
+            <h2 class="text-<%= @classification.priority_color %> fw-bold text-uppercase">
+              <%= @classification.priority %>
+            </h2>
+            <p class="text-muted mb-1">Priority Level</p>
+            <div class="mt-3">
+              <div class="display-6 fw-bold text-<%= @classification.priority_color %>">
+                <%= (@classification.confidence.to_f * 100).round(1) %>%
+              </div>
+              <p class="text-muted">Confidence</p>
+            </div>
+            <div class="mt-2">
+              <small class="text-muted">
+                <i class="bi bi-cpu me-1"></i>Model: <strong><%= @classification.model_used&.titleize %></strong>
+              </small><br>
+              <small class="text-muted">
+                <i class="bi bi-clock me-1"></i><%= @classification.processing_time_ms %>ms
+              </small>
+            </div>
+          </div>
+
+          <!-- Right: Email Details -->
+          <div class="col-md-8">
+            <table class="table table-borderless table-sm">
+              <tbody>
+                <tr>
+                  <th class="text-muted" style="width:110px">From</th>
+                  <td><%= @classification.sender %></td>
+                </tr>
+                <tr>
+                  <th class="text-muted">To</th>
+                  <td><%= @classification.recipients.presence || "-" %></td>
+                </tr>
+                <tr>
+                  <th class="text-muted">Subject</th>
+                  <td><strong><%= @classification.subject %></strong></td>
+                </tr>
+                <tr>
+                  <th class="text-muted">Date</th>
+                  <td><%= @classification.date.presence || @classification.created_at.strftime("%d %b %Y %H:%M") %></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="bg-light rounded p-3 mt-2" style="max-height:120px;overflow-y:auto;">
+              <small class="text-muted font-monospace"><%= truncate(@classification.body, length: 400) %></small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-4 mb-4">
+
+      <!-- Confidence Scores Chart -->
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header fw-semibold">
+            <i class="bi bi-bar-chart-fill me-2 text-primary"></i>Confidence Scores by Priority
+          </div>
+          <div class="card-body">
+            <canvas id="confidenceChart" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- SHAP Feature Importance Chart -->
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header fw-semibold">
+            <i class="bi bi-sliders me-2 text-warning"></i>SHAP Feature Attribution (Top 10)
+          </div>
+          <div class="card-body">
+            <% if @shap_values.any? %>
+              <canvas id="shapChart" height="220"></canvas>
+            <% else %>
+              <div class="text-center text-muted py-5">
+                <i class="bi bi-info-circle fs-3 d-block mb-2"></i>
+                SHAP values not available for this model
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Priority Explanation Card -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-info-circle me-2 text-info"></i>Priority Level Explanation
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-sm-3">
+            <div class="p-3 rounded bg-danger bg-opacity-10 text-center <%= 'border border-danger border-2' if @classification.priority == 'critical' %>">
+              <div class="fs-4">Red</div>
+              <strong class="text-danger">Critical</strong>
+              <p class="small text-muted mb-0 mt-1">Urgent action required immediately</p>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="p-3 rounded bg-warning bg-opacity-10 text-center <%= 'border border-warning border-2' if @classification.priority == 'high' %>">
+              <div class="fs-4">Yellow</div>
+              <strong class="text-warning">High</strong>
+              <p class="small text-muted mb-0 mt-1">Important, respond within the day</p>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="p-3 rounded bg-primary bg-opacity-10 text-center <%= 'border border-primary border-2' if @classification.priority == 'normal' %>">
+              <div class="fs-4">Blue</div>
+              <strong class="text-primary">Normal</strong>
+              <p class="small text-muted mb-0 mt-1">Standard business communication</p>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="p-3 rounded bg-secondary bg-opacity-10 text-center <%= 'border border-secondary border-2' if @classification.priority == 'low' %>">
+              <div class="fs-4"></div>
+              <strong class="text-secondary">Low</strong>
+              <p class="small text-muted mb-0 mt-1">FYI, newsletters, no action needed</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex gap-2 flex-wrap">
+      <%= link_to new_classification_path, class: "btn btn-primary" do %>
+        <i class="bi bi-plus-circle me-1"></i>Classify Another Email
+      <% end %>
+      <%= link_to classifications_path, class: "btn btn-outline-secondary" do %>
+        <i class="bi bi-clock-history me-1"></i>View History
+      <% end %>
+      <%= link_to classification_path(@classification), data: { turbo_method: :delete, turbo_confirm: "Delete this classification?" }, class: "btn btn-outline-danger ms-auto" do %>
+        <i class="bi bi-trash me-1"></i>Delete
+      <% end %>
+    </div>
+
+  </div>
+</div>
+
+<% content_for :page_scripts do %>
+<script>
+(function() {
+  // -- Confidence Scores Bar Chart ------------------------------
+  const confScores = <%= raw @confidence_scores.to_json %>;
+  const confLabels = ['Critical', 'High', 'Normal', 'Low'];
+  const confKeys   = ['critical', 'high', 'normal', 'low'];
+  const confColors = ['rgba(220,53,69,0.8)', 'rgba(255,193,7,0.8)',
+                      'rgba(13,110,253,0.8)', 'rgba(108,117,125,0.8)'];
+  const confBorder = ['#dc3545','#ffc107','#0d6efd','#6c757d'];
+
+  const confData = confKeys.map(k => ((confScores[k] || 0) * 100).toFixed(2));
+
+  new Chart(document.getElementById('confidenceChart'), {
+    type: 'bar',
+    data: {
+      labels: confLabels,
+      datasets: [{
+        label: 'Confidence (%)',
+        data: confData,
+        backgroundColor: confColors,
+        borderColor: confBorder,
+        borderWidth: 2,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y}%`
+          }
+        }
+      },
+      scales: {
+        y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
+      }
+    }
+  });
+
+  // -- SHAP Feature Attribution Horizontal Bar Chart -------------
+  const shapData = <%= raw @shap_values.to_json %>;
+  const shapCanvas = document.getElementById('shapChart');
+  if (shapCanvas && Object.keys(shapData).length > 0) {
+    const sorted = Object.entries(shapData)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .slice(0, 10);
+    const shapLabels = sorted.map(e => e[0].replace(/_/g, ' '));
+    const shapValues = sorted.map(e => parseFloat(e[1].toFixed(4)));
+    const shapColors = shapValues.map(v =>
+      v >= 0 ? 'rgba(220,53,69,0.75)' : 'rgba(13,110,253,0.75)'
+    );
+
+    new Chart(shapCanvas, {
+      type: 'bar',
+      data: {
+        labels: shapLabels,
+        datasets: [{
+          label: 'SHAP value',
+          data: shapValues,
+          backgroundColor: shapColors,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` SHAP: ${ctx.parsed.x}`
+            }
+          }
+        },
+        scales: {
+          x: { title: { display: true, text: 'SHAP contribution (red = increases priority, blue = decreases)' } }
+        }
+      }
+    });
+  }
+})();
+</script>
+<% end %>
