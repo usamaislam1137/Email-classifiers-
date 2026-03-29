@@ -1,0 +1,279 @@
+<% content_for :title, "Dashboard" %>
+
+<!-- -- Page header -------------------------------------------------------- -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h2 fw-bold mb-1">
+      <i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard
+    </h1>
+    <p class="text-muted mb-0">Email priority classification overview</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <%= api_status_badge(@api_healthy) %>
+    <%= link_to new_classification_path, class: "btn btn-primary" do %>
+      <i class="bi bi-plus-circle me-1"></i> Classify Email
+    <% end %>
+  </div>
+</div>
+
+<!-- -- Stat cards ---------------------------------------------------------- -->
+<div class="row g-3 mb-4">
+  <!-- Total -->
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="display-6 fw-bold text-dark"><%= @total %></div>
+        <div class="small text-muted mt-1"><i class="bi bi-envelope me-1"></i>Total</div>
+      </div>
+    </div>
+  </div>
+  <!-- Critical -->
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-0 shadow-sm border-start border-danger border-3">
+      <div class="card-body">
+        <div class="display-6 fw-bold text-danger"><%= @critical_count %></div>
+        <div class="small text-muted mt-1">Red Critical</div>
+      </div>
+    </div>
+  </div>
+  <!-- High -->
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-0 shadow-sm border-start border-warning border-3">
+      <div class="card-body">
+        <div class="display-6 fw-bold text-warning"><%= @high_count %></div>
+        <div class="small text-muted mt-1">Yellow High</div>
+      </div>
+    </div>
+  </div>
+  <!-- Normal -->
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-0 shadow-sm border-start border-primary border-3">
+      <div class="card-body">
+        <div class="display-6 fw-bold text-primary"><%= @normal_count %></div>
+        <div class="small text-muted mt-1">Blue Normal</div>
+      </div>
+    </div>
+  </div>
+  <!-- Low -->
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-0 shadow-sm border-start border-secondary border-3">
+      <div class="card-body">
+        <div class="display-6 fw-bold text-secondary"><%= @low_count %></div>
+        <div class="small text-muted mt-1"> Low</div>
+      </div>
+    </div>
+  </div>
+  <!-- Avg Confidence -->
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="display-6 fw-bold text-success"><%= (@avg_confidence * 100).round(0) %>%</div>
+        <div class="small text-muted mt-1"><i class="bi bi-bullseye me-1"></i>Avg Confidence</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- -- Charts + Model Info -------------------------------------------------- -->
+<div class="row g-4 mb-4">
+  <!-- Priority Distribution Pie Chart -->
+  <div class="col-md-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-3">
+        <h5 class="card-title mb-0"><i class="bi bi-pie-chart me-2"></i>Priority Distribution</h5>
+      </div>
+      <div class="card-body d-flex justify-content-center align-items-center">
+        <% if @total > 0 %>
+          <div style="max-width: 320px; width: 100%;">
+            <canvas id="priorityPieChart" height="280"></canvas>
+          </div>
+        <% else %>
+          <div class="text-center text-muted py-5">
+            <i class="bi bi-pie-chart display-4 d-block mb-3 opacity-25"></i>
+            <p>No data yet. <br><%= link_to "Classify your first email", new_classification_path %></p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- ML API Model Info -->
+  <div class="col-md-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0"><i class="bi bi-cpu me-2"></i>ML Model Status</h5>
+        <%= api_status_badge(@api_healthy) %>
+      </div>
+      <div class="card-body">
+        <% if @model_info %>
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <div class="bg-light rounded p-3">
+                <div class="small text-muted mb-1">Active Model</div>
+                <div class="fw-bold text-truncate">
+                  <i class="bi bi-check-circle-fill text-success me-1"></i>
+                  <%= @model_info[:best_model]&.humanize || "Unknown" %>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="bg-light rounded p-3">
+                <div class="small text-muted mb-1">Accuracy</div>
+                <div class="fw-bold">
+                  <span class="badge bg-<%= accuracy_color(@model_info[:accuracy]) %> fs-6">
+                    <%= (@model_info[:accuracy].to_f * 100).round(1) %>%
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="bg-light rounded p-3">
+                <div class="small text-muted mb-1">Macro F1 Score</div>
+                <div class="fw-bold">
+                  <span class="badge bg-<%= accuracy_color(@model_info[:macro_f1]) %> fs-6">
+                    <%= @model_info[:macro_f1].to_f.round(4) %>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="bg-light rounded p-3">
+                <div class="small text-muted mb-1">Last Trained</div>
+                <div class="fw-bold small">
+                  <%= @model_info[:training_date]&.to_s&.first(10) || "N/A" %>
+                </div>
+              </div>
+            </div>
+          </div>
+          <% if @model_info[:needs_fallback] %>
+            <div class="alert alert-warning mt-3 mb-0 small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Fallback model is active (trained model below threshold).
+            </div>
+          <% end %>
+        <% elsif @api_healthy %>
+          <div class="text-center text-muted py-4">
+            <i class="bi bi-hourglass-split display-4 d-block mb-2 opacity-25"></i>
+            <p>Model info unavailable. The pipeline may not have been run yet.</p>
+          </div>
+        <% else %>
+          <div class="text-center text-muted py-4">
+            <i class="bi bi-plug-fill display-4 d-block mb-2 opacity-25 text-danger"></i>
+            <p class="text-danger fw-semibold mb-1">ML API is offline</p>
+            <small>Start the Python Flask API: <code>python flask_api.py</code></small>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- -- Recent Classifications Table --------------------------------------- -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
+    <h5 class="card-title mb-0"><i class="bi bi-clock-history me-2"></i>Recent Classifications</h5>
+    <%= link_to "View All", classifications_path, class: "btn btn-sm btn-outline-secondary" %>
+  </div>
+  <div class="card-body p-0">
+    <% if @recent.any? %>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Priority</th>
+              <th>Subject</th>
+              <th>Sender</th>
+              <th>Confidence</th>
+              <th>Model</th>
+              <th>Time</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @recent.each do |c| %>
+              <tr>
+                <td class="ps-3"><%= priority_badge(c.priority) %></td>
+                <td>
+                  <span class="fw-semibold"><%= short_text(c.subject, 60) %></span>
+                </td>
+                <td class="text-muted small"><%= short_text(c.sender, 35) %></td>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="progress flex-grow-1" style="height:8px; min-width:60px;">
+                      <div class="progress-bar bg-<%= c.priority_color %>"
+                           style="width:<%= c.confidence_percent %>%"></div>
+                    </div>
+                    <small class="text-muted"><%= c.confidence_percent %>%</small>
+                  </div>
+                </td>
+                <td><small class="text-muted"><%= c.model_used&.humanize&.truncate(20) %></small></td>
+                <td><small class="text-muted"><%= time_ago_in_words(c.created_at) %> ago</small></td>
+                <td>
+                  <%= link_to classification_path(c), class: "btn btn-sm btn-outline-primary" do %>
+                    <i class="bi bi-eye"></i>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox display-4 d-block mb-3 opacity-25"></i>
+        <p class="mb-3">No emails classified yet.</p>
+        <%= link_to new_classification_path, class: "btn btn-primary" do %>
+          <i class="bi bi-plus-circle me-1"></i> Classify Your First Email
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% if @total > 0 %>
+  <% content_for :page_scripts do %>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        const ctx = document.getElementById("priorityPieChart");
+        if (!ctx) return;
+        new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Critical", "High", "Normal", "Low"],
+            datasets: [{
+              data: [
+                <%= @priority_counts["critical"] || 0 %>,
+                <%= @priority_counts["high"]     || 0 %>,
+                <%= @priority_counts["normal"]   || 0 %>,
+                <%= @priority_counts["low"]      || 0 %>
+              ],
+              backgroundColor: ["#dc3545", "#ffc107", "#0d6efd", "#6c757d"],
+              borderWidth: 2,
+              borderColor: "#fff",
+              hoverOffset: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            cutout: "60%",
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { padding: 16, font: { size: 13 } }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const pct = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                    return ` ${context.label}: ${context.parsed} (${pct}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+      });
+    </script>
+  <% end %>
+<% end %>
