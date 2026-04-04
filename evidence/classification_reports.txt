@@ -1,0 +1,60 @@
+EMAIL PRIORITY CLASSIFICATION — MODEL EVALUATION REPORT
+Generated: 2026-04-05 17:51:04
+======================================================================
+
+Model: LOGISTIC REGRESSION
+  Accuracy:  0.7462
+  Macro F1:  0.7052
+
+  Per-class metrics:
+    critical    precision=0.710  recall=0.633  f1=0.670  support=120
+    high        precision=0.742  recall=0.820  f1=0.779  support=200
+    normal      precision=0.777  recall=0.825  f1=0.801  support=360
+    low         precision=0.667  recall=0.500  f1=0.571  support=120
+
+  Confusion Matrix (rows=true, cols=pred):
+              critical        high      normal         low
+  critical            76          31          13           0
+  high                17         164          13           6
+  normal              14          25         297          24
+  low                  0           1          59          60
+
+======================================================================
+
+Model: RANDOM FOREST
+  Accuracy:  1.0000
+  Macro F1:  1.0000
+
+  Per-class metrics:
+    critical    precision=1.000  recall=1.000  f1=1.000  support=120
+    high        precision=1.000  recall=1.000  f1=1.000  support=200
+    normal      precision=1.000  recall=1.000  f1=1.000  support=360
+    low         precision=1.000  recall=1.000  f1=1.000  support=120
+
+  Confusion Matrix (rows=true, cols=pred):
+              critical        high      normal         low
+  critical           120           0           0           0
+  high                 0         200           0           0
+  normal               0           0         360           0
+  low                  0           0           0         120
+
+======================================================================
+
+Model: XGBOOST
+  Accuracy:  1.0000
+  Macro F1:  1.0000
+
+  Per-class metrics:
+    critical    precision=1.000  recall=1.000  f1=1.000  support=120
+    high        precision=1.000  recall=1.000  f1=1.000  support=200
+    normal      precision=1.000  recall=1.000  f1=1.000  support=360
+    low         precision=1.000  recall=1.000  f1=1.000  support=120
+
+  Confusion Matrix (rows=true, cols=pred):
+              critical        high      normal         low
+  critical           120           0           0           0
+  high                 0         200           0           0
+  normal               0           0         360           0
+  low                  0           0           0         120
+
+======================================================================
