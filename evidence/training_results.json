@@ -1,0 +1,41 @@
+{
+  "training_date": "2026-04-05T17:51:03.614397",
+  "n_samples": 4000,
+  "n_train": 3200,
+  "n_test": 800,
+  "n_features": 1460,
+  "random_state": 42,
+  "cv_folds": 5,
+  "models": {
+    "logistic_regression": {
+      "model": "logistic_regression",
+      "accuracy": 0.74625,
+      "macro_f1": 0.7051671415972487,
+      "train_time_s": 18.77,
+      "cv_accuracy_mean": 0.7434999999999999,
+      "cv_accuracy_std": 0.013261787209874863,
+      "cv_f1_macro_mean": 0.6966467282212486,
+      "cv_f1_macro_std": 0.01599321150819335
+    },
+    "random_forest": {
+      "model": "random_forest",
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "train_time_s": 0.68,
+      "cv_accuracy_mean": 1.0,
+      "cv_accuracy_std": 0.0,
+      "cv_f1_macro_mean": 1.0,
+      "cv_f1_macro_std": 0.0
+    },
+    "xgboost": {
+      "model": "xgboost",
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "train_time_s": 39.51,
+      "cv_accuracy_mean": 1.0,
+      "cv_accuracy_std": 0.0,
+      "cv_f1_macro_mean": 1.0,
+      "cv_f1_macro_std": 0.0
+    }
+  }
+}

@@ -1,0 +1,40 @@
+2026-04-05 17:49:04,029  INFO      ============================================================
+2026-04-05 17:49:04,029  INFO        Email Priority Classification — Mock Training Pipeline
+2026-04-05 17:49:04,029  INFO        Started: 2026-04-05T17:49:04.029913
+2026-04-05 17:49:04,030  INFO      ============================================================
+2026-04-05 17:49:04,046  INFO      Loaded 4000 emails from /Users/sammalik/Desktop/Disertation/Osama/email_priority_system/ml/data/processed/processed_emails.csv
+2026-04-05 17:49:04,161  INFO      Saved class distribution: /Users/sammalik/Desktop/Disertation/Osama/evidence/class_distribution.png
+2026-04-05 17:49:04,162  INFO      --- Feature Engineering ---
+2026-04-05 17:49:04,312  INFO      Feature matrix: (4000, 1460)  |  classes: [600, 1000, 1800, 600]
+2026-04-05 17:49:04,330  INFO      TF-IDF vectorizer saved.
+2026-04-05 17:49:04,336  INFO      Train: 3200  |  Test: 800
+2026-04-05 17:49:04,336  INFO      --- Model Training ---
+2026-04-05 17:49:04,336  INFO      === Training Logistic Regression (TF-IDF only, no SMOTE) ===
+2026-04-05 17:49:23,139  INFO      LR  accuracy=0.7462  macro_f1=0.7052  time=18.8s
+2026-04-05 17:50:02,389  INFO      LR  CV accuracy=0.7435±0.0133
+2026-04-05 17:50:02,392  INFO      === Training Random Forest ===
+2026-04-05 17:50:02,631  INFO      SMOTE: 3200 → 5760 samples
+2026-04-05 17:50:03,345  INFO      RF  accuracy=1.0000  macro_f1=1.0000  time=0.7s
+2026-04-05 17:50:05,873  INFO      === Training XGBoost ===
+2026-04-05 17:50:06,035  INFO      SMOTE: 3200 → 5760 samples
+2026-04-05 17:50:45,575  INFO      XGB accuracy=1.0000  macro_f1=1.0000  time=39.5s
+2026-04-05 17:51:03,599  INFO      --- Evaluating Models ---
+2026-04-05 17:51:03,606  INFO      logistic_regression        accuracy=0.7462  macro_f1=0.7052
+2026-04-05 17:51:03,610  INFO      random_forest              accuracy=1.0000  macro_f1=1.0000
+2026-04-05 17:51:03,613  INFO      xgboost                    accuracy=1.0000  macro_f1=1.0000
+2026-04-05 17:51:03,614  INFO      Best model: random_forest  (accuracy=1.0000  macro_f1=1.0000)
+2026-04-05 17:51:03,616  INFO      JSON artefacts saved.
+2026-04-05 17:51:03,616  INFO      --- Generating Evidence Plots ---
+2026-04-05 17:51:03,747  INFO      Saved confusion matrix: /Users/sammalik/Desktop/Disertation/Osama/evidence/confusion_matrix_logistic_regression.png
+2026-04-05 17:51:03,863  INFO      Saved confusion matrix: /Users/sammalik/Desktop/Disertation/Osama/evidence/confusion_matrix_random_forest.png
+2026-04-05 17:51:03,975  INFO      Saved confusion matrix: /Users/sammalik/Desktop/Disertation/Osama/evidence/confusion_matrix_xgboost.png
+2026-04-05 17:51:04,083  INFO      Saved model comparison: /Users/sammalik/Desktop/Disertation/Osama/evidence/model_comparison.png
+2026-04-05 17:51:04,380  INFO      Saved ROC curves: /Users/sammalik/Desktop/Disertation/Osama/evidence/roc_curves.png
+2026-04-05 17:51:04,537  INFO      Saved feature importance: /Users/sammalik/Desktop/Disertation/Osama/evidence/feature_importance_random_forest.png
+2026-04-05 17:51:04,653  INFO      Saved feature importance: /Users/sammalik/Desktop/Disertation/Osama/evidence/feature_importance_xgboost.png
+2026-04-05 17:51:04,654  INFO      Saved classification reports: /Users/sammalik/Desktop/Disertation/Osama/evidence/classification_reports.txt
+2026-04-05 17:51:04,654  INFO      ============================================================
+2026-04-05 17:51:04,654  INFO        Pipeline Complete: 2026-04-05T17:51:04.654119
+2026-04-05 17:51:04,654  INFO        Best model: random_forest         accuracy=1.0000  macro_f1=1.0000
+2026-04-05 17:51:04,654  INFO        Evidence saved to: /Users/sammalik/Desktop/Disertation/Osama/evidence
+2026-04-05 17:51:04,654  INFO      ============================================================
