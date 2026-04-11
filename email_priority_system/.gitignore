@@ -24,14 +24,8 @@ rails_app/tmp/local_secret.txt
 *.log
 ml/pipeline.log
 
-# ML data & large artefacts (regenerate via pipeline; keep repo source-only)
-ml/data/raw/
-ml/data/processed/
-ml/models/**
-!ml/models/.gitkeep
-
-# Documentation (per project preference: code repo without docs)
-*.md
+# ML: keep default datasets + trained artefacts in-repo for clone-and-run (Docker mounts these paths).
+# Re-add ignores here if raw corpora grow too large for Git.
 
 # OS / IDE
 .DS_Store

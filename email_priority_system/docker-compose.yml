@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # -- Python ML API -------------------------------------------------
   ml-api:
@@ -40,6 +38,8 @@ services:
     volumes:
       - rails_db:/rails/db
       - rails_storage:/rails/storage
+    # Empty named volume hides DB files baked into the image; prepare schema on each start.
+    command: ["sh", "-c", "bundle exec rails db:prepare && bundle exec puma -C config/puma.rb"]
     depends_on:
       ml-api:
         condition: service_healthy
