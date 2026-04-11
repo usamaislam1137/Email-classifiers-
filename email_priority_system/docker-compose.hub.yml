@@ -1,0 +1,50 @@
+# Run pre-built images from Docker Hub (no local build).
+#
+#   export DOCKERHUB_USER=your_dockerhub_username   # must match images you pushed
+#   docker compose -f docker-compose.hub.yml pull
+#   docker compose -f docker-compose.hub.yml up
+#
+# Default DOCKERHUB_USER matches the GitHub account used for this project; override if you pushed under a different Hub user.
+
+services:
+  ml-api:
+    image: ${DOCKERHUB_USER:-usamaislam1137}/email-priority-ml-api:latest
+    container_name: email_ml_api
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./ml/data:/app/data
+      - ./ml/models:/app/models
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  rails-app:
+    image: ${DOCKERHUB_USER:-usamaislam1137}/email-priority-rails-app:latest
+    container_name: email_rails_app
+    ports:
+      - "3000:3000"
+    environment:
+      - RAILS_ENV=production
+      - ML_API_URL=http://ml-api:5000
+      - ML_API_TIMEOUT=30
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-change_me_in_production_please_use_a_real_secret}
+      - RAILS_LOG_TO_STDOUT=true
+    volumes:
+      - rails_db:/rails/db
+      - rails_storage:/rails/storage
+    depends_on:
+      ml-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rails_db:
+  rails_storage:
