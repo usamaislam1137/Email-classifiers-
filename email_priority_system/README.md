@@ -51,14 +51,14 @@ email_priority_system/
 
 ### Option A - Docker Compose (recommended)
 
-`ml/data` and `ml/models` are included in the repo so a fresh clone can run without training first.
+`ml/data` and `ml/models` are included in the repository so a fresh clone can run **without training first**.
 
 ```bash
 cd email_priority_system
 docker compose up --build
 ```
 
-The Rails service runs `db:prepare` on start so the SQLite database exists on the named Docker volume (the empty volume would otherwise hide the DB from the image build).
+The Rails image runs `rails db:prepare` on every container start (see `rails_app/bin/docker-entrypoint`) so the SQLite database exists on the named Docker volume. An empty volume would otherwise hide the database files from the image build.
 
 To **re-train** inside the ML container instead:
 

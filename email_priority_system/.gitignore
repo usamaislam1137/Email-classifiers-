@@ -24,8 +24,9 @@ rails_app/tmp/local_secret.txt
 *.log
 ml/pipeline.log
 
-# ML: keep default datasets + trained artefacts in-repo for clone-and-run (Docker mounts these paths).
-# Re-add ignores here if raw corpora grow too large for Git.
+# Optional: uncomment if you add huge raw corpora (Enron tarballs) and want to exclude them
+# ml/data/raw/*.tar.*
+# ml/data/raw/maildir/
 
 # OS / IDE
 .DS_Store

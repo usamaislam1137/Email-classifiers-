@@ -17,7 +17,7 @@ RUN gem install bundler
 
 # Copy Gemfile and install dependencies
 COPY rails_app/Gemfile rails_app/Gemfile.lock* ./
-RUN bundle install --without development test
+RUN bundle config set --local without "development test" && bundle install
 
 # Copy application
 COPY rails_app/ .
@@ -25,12 +25,15 @@ COPY rails_app/ .
 # Precompile assets
 RUN SECRET_KEY_BASE=placeholder bundle exec rails assets:precompile 2>/dev/null || true
 
-# Database setup
+# Database setup (image layer only; runtime uses named volume at /rails/db)
 RUN bundle exec rails db:create db:migrate 2>/dev/null || true
+
+RUN chmod +x bin/docker-entrypoint
 
 EXPOSE 3000
 
 ENV RAILS_ENV=production
 ENV RAILS_LOG_TO_STDOUT=true
 
+ENTRYPOINT ["./bin/docker-entrypoint"]
 CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]
