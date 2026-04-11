@@ -2,7 +2,7 @@
 # Build multi-arch images (Intel/AMD + Apple Silicon) and push to Docker Hub.
 #
 # Uses the account from `docker login` when DOCKERHUB_USER is not set (reads
-# Docker credential helper for registry index.docker.io).
+# credHelpers / credsStore and Docker Hub URLs the way Docker Desktop stores them).
 #
 # Prerequisites:
 #   docker login
@@ -32,20 +32,98 @@ detect_dockerhub_user() {
     return 1
   fi
 
-  local helper
-  helper="$(python3 -c "import json; c=json.load(open('$config')); print(c.get('credsStore') or '')" 2>/dev/null || true)"
-  if [[ -z "$helper" ]]; then
-    return 1
-  fi
+  # Docker Desktop often uses per-registry credHelpers (e.g. docker.io) instead of credsStore.
+  # Try several ServerURL strings because helpers key off the URL used at login.
+  CONFIG_PATH="$config" python3 <<'PY'
+import base64
+import json
+import os
+import shutil
+import subprocess
+import sys
 
-  local helper_bin="docker-credential-${helper}"
-  if ! command -v "$helper_bin" &>/dev/null; then
-    return 1
-  fi
+def helper_get(helper_name: str, server_url: str):
+    exe = shutil.which(f"docker-credential-{helper_name}")
+    if not exe:
+        return None
+    payload = json.dumps({"ServerURL": server_url})
+    try:
+        p = subprocess.run(
+            [exe, "get"],
+            input=payload.encode(),
+            capture_output=True,
+            timeout=15,
+        )
+        if p.returncode != 0:
+            return None
+        data = json.loads(p.stdout.decode())
+        u = (data.get("Username") or "").strip()
+        return u or None
+    except (FileNotFoundError, json.JSONDecodeError, subprocess.TimeoutExpired):
+        return None
 
-  printf '{"ServerURL":"https://index.docker.io/v1/"}' \
- | "$helper_bin" get 2>/dev/null \
-    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('Username') or '')" 2>/dev/null || true
+def try_helper(helper_name: str):
+    urls = [
+        "https://index.docker.io/v1/",
+        "https://index.docker.io/v2/",
+        "registry-1.docker.io",
+        "https://registry-1.docker.io/v2/",
+        "docker.io",
+        "https://docker.io/v1/",
+    ]
+    for url in urls:
+        u = helper_get(helper_name, url)
+        if u:
+            return u
+    return None
+
+path = os.environ.get("CONFIG_PATH", "")
+if not path or not os.path.isfile(path):
+    sys.exit(1)
+
+with open(path, encoding="utf-8") as f:
+    cfg = json.load(f)
+
+# 1) credHelpers: registry host -> helper (Docker Desktop typical)
+for reg, helper in (cfg.get("credHelpers") or {}).items():
+    r = reg.lower()
+    if "docker.io" not in r and "docker.com" not in r and "index.docker.io" not in r:
+        continue
+    u = try_helper(helper)
+    if u:
+        print(u)
+        sys.exit(0)
+    # Also ask the helper using the config key itself as ServerURL
+    u = helper_get(helper, reg if reg.startswith("http") else f"https://{reg}/v1/")
+    if u:
+        print(u)
+        sys.exit(0)
+
+# 2) Global credsStore
+store = (cfg.get("credsStore") or "").strip()
+if store:
+    u = try_helper(store)
+    if u:
+        print(u)
+        sys.exit(0)
+
+# 3) Inline auth (older / CI)
+for url, entry in (cfg.get("auths") or {}).items():
+    if "docker.io" not in url.lower():
+        continue
+    auth = entry.get("auth")
+    if not auth:
+        continue
+    try:
+        raw = base64.b64decode(auth).decode("utf-8")
+        if ":" in raw:
+            print(raw.split(":", 1)[0])
+            sys.exit(0)
+    except Exception:
+        pass
+
+sys.exit(1)
+PY
 }
 
 setup_builder() {
