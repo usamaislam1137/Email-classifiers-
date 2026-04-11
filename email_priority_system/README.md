@@ -71,30 +71,31 @@ docker compose run --rm ml-api bash run_pipeline.sh --no-bert
 - Rails app -> http://localhost:3000
 - ML API    -> http://localhost:5000
 
-### Docker Hub (pre-built images)
+### Docker Hub (pre-built images, multi-arch)
 
-Push (from a machine that has built the stack at least once):
+Images are built for **linux/amd64** and **linux/arm64** (Intel/AMD and Apple Silicon) via Buildx and pushed as a single manifest, so any common laptop or server pulls the right variant.
 
-1. Log in: `docker login` (use your **Docker Hub** username and password or access token).
-2. Set your Hub username (must match the account you logged in with):
-
-   ```bash
-   export DOCKERHUB_USER=your_dockerhub_username
-   ./bin/push-dockerhub.sh
-   ```
-
-   This publishes `DOCKERHUB_USER/email-priority-ml-api:latest` and `DOCKERHUB_USER/email-priority-rails-app:latest`.
-
-Pull and run on another machine (clone repo so `ml/data` and `ml/models` paths exist for volume mounts):
+**Push** (after `docker login`):
 
 ```bash
 cd email_priority_system
-export DOCKERHUB_USER=your_dockerhub_username   # same as push
+./bin/push-dockerhub.sh
+```
+
+The script reads your Docker Hub username from the `docker login` credential helper. To override: `export DOCKERHUB_USER=yourhublogin` then run the script.
+
+It publishes `DOCKERHUB_USER/email-priority-ml-api:latest` and `DOCKERHUB_USER/email-priority-rails-app:latest`.
+
+**Make repositories public** (so `docker pull` works without logging in): on [Docker Hub](https://hub.docker.com) open each repository → **Settings** → **Visibility** → **Public** → Save. New repos sometimes default to private depending on account settings.
+
+**Pull and run** on another machine (clone the repo so `./ml/data` and `./ml/models` exist for volume mounts):
+
+```bash
+cd email_priority_system
+export DOCKERHUB_USER=your_dockerhub_username   # account that owns the images
 docker compose -f docker-compose.hub.yml pull
 docker compose -f docker-compose.hub.yml up
 ```
-
-If you build on **Apple Silicon** and pull on **Intel/AMD** Linux, build and push a **linux/amd64** image (for example with `docker buildx`) so the other machine can run it.
 
 ---
 

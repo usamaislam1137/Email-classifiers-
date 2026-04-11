@@ -1,14 +1,17 @@
 # Run pre-built images from Docker Hub (no local build).
 #
-#   export DOCKERHUB_USER=your_dockerhub_username   # must match images you pushed
+# Set DOCKERHUB_USER to the same Docker Hub username you used when pushing
+# (bin/push-dockerhub.sh can read it from `docker login` when you push).
+#
+#   export DOCKERHUB_USER=your_dockerhub_username
 #   docker compose -f docker-compose.hub.yml pull
 #   docker compose -f docker-compose.hub.yml up
 #
-# Default DOCKERHUB_USER matches the GitHub account used for this project; override if you pushed under a different Hub user.
+# Repositories must be Public on Docker Hub for anonymous pull (no docker login).
 
 services:
   ml-api:
-    image: ${DOCKERHUB_USER:-usamaislam1137}/email-priority-ml-api:latest
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER to your Docker Hub username}/email-priority-ml-api:latest
     container_name: email_ml_api
     ports:
       - "5000:5000"
@@ -27,7 +30,7 @@ services:
     restart: unless-stopped
 
   rails-app:
-    image: ${DOCKERHUB_USER:-usamaislam1137}/email-priority-rails-app:latest
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER to your Docker Hub username}/email-priority-rails-app:latest
     container_name: email_rails_app
     ports:
       - "3000:3000"
