@@ -60,6 +60,8 @@ cd email_priority_system
 docker compose up --build
 ```
 
+The ML image installs **`ml/requirements-docker.txt`** (no PyTorch/Hugging Face) so the API image stays small; full training still uses **`ml/requirements.txt`** on your machine. If a build fails with **“no space left on device”**, free space: Docker Desktop → Settings → Resources → Disk image size, and run `docker system prune` / `docker builder prune` (removes unused layers).
+
 The Rails image runs `rails db:prepare` on every container start (see `rails_app/bin/docker-entrypoint`) so the SQLite database exists on the named Docker volume. An empty volume would otherwise hide the database files from the image build.
 
 To **re-train** inside the ML container instead:

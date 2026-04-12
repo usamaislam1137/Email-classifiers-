@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY ml/requirements.txt .
+# Install Python dependencies (slim set — no torch/transformers — smaller/faster builds)
+COPY ml/requirements-docker.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Download NLTK data
