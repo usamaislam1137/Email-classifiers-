@@ -1,5 +1,6 @@
 #!/bin/sh
 set -e
 cd /rails
+mkdir -p tmp/pids tmp/cache tmp/sockets log
 bundle exec rails db:prepare
 exec "$@"
