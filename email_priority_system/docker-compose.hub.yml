@@ -8,13 +8,16 @@
 #   docker compose -f docker-compose.hub.yml up
 #
 # Repositories must be Public on Docker Hub for anonymous pull (no docker login).
+#
+# ML API on host defaults to port 5001 (see docker-compose.yml). Override:
+#   ML_API_HOST_PORT=5000 docker compose -f docker-compose.hub.yml up
 
 services:
   ml-api:
     image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER to your Docker Hub username}/email-priority-ml-api:latest
     container_name: email_ml_api
     ports:
-      - "5000:5000"
+      - "${ML_API_HOST_PORT:-5001}:5000"
     volumes:
       - ./ml/data:/app/data
       - ./ml/models:/app/models

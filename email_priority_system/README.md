@@ -69,7 +69,7 @@ docker compose run --rm ml-api bash run_pipeline.sh --no-bert
 ```
 
 - Rails app -> http://localhost:3000
-- ML API    -> http://localhost:5000
+- ML API (from your machine) -> http://localhost:5001 by default (port **5000** is often taken on macOS by AirPlay). Inside Compose, Rails still calls `http://ml-api:5000`. To map host port 5000 instead: `ML_API_HOST_PORT=5000 docker compose up`
 
 ### Docker Hub (pre-built images, multi-arch)
 
