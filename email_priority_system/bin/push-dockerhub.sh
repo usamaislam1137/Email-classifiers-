@@ -18,11 +18,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${ROOT}"
 
-PLATFORMS="linux/amd64,linux/arm64"
+# Comma-separated. Multi-arch (two platforms) is heavy; if export fails with I/O errors,
+# try:  PUSH_PLATFORMS=linux/arm64  (or linux/amd64) on one machine, push again on another arch if needed
+PLATFORMS="${PUSH_PLATFORMS:-linux/amd64,linux/arm64}"
 BUILDER_NAME="email-priority-multiarch"
-# docker-container driver uses a separate BuildKit container; its overlay2 store can get
-# I/O errors (e.g. "open .../overlay2/.../lower: input/output error"). Default is "docker"
-# (main Docker engine). Override: export BUILDX_DRIVER=docker-container
+# docker-container driver uses a separate BuildKit container; its overlay2 / containerd
+# can hit I/O errors. Default: "docker". Override: export BUILDX_DRIVER=docker-container
 BUILDX_DRIVER="${BUILDX_DRIVER:-docker}"
 
 detect_dockerhub_user() {
@@ -131,13 +132,16 @@ PY
 }
 
 setup_builder() {
+  if [[ "${BUILDX_PRUNE:-}" == "1" ]]; then
+    echo "== buildx prune (clears bad BuildKit cache; helps input/output on export) ==" >&2
+    docker buildx prune -af 2>/dev/null || true
+  fi
   if docker buildx inspect "$BUILDER_NAME" &>/dev/null; then
     local cur
-    cur="$(docker buildx inspect "$BUILDER_NAME" -f '{{.Driver}}' 2>/dev/null || true)"
-    # docker-container driver uses a separate BuildKit image; its overlay2 can I/O error.
-    # Migrate to plain "docker" driver unless user set BUILDX_DRIVER=docker-container.
-    if [[ "$cur" == *"docker-container"* && "$BUILDX_DRIVER" == "docker" ]]; then
-      echo "== Replacing buildx builder (drop docker-container → docker; fixes overlay2 I/O errors) ==" >&2
+    cur="$(docker buildx inspect "$BUILDER_NAME" -f '{{.Driver}}' 2>/dev/null | tr -d '\r\n' || true)"
+    # Recreate if driver does not match (e.g. still docker-container while we want docker)
+    if [[ -z "$cur" || "$cur" != "$BUILDX_DRIVER" ]]; then
+      echo "== Recreating buildx (was driver: ${cur:-?}, want: $BUILDX_DRIVER) ==" >&2
       docker buildx rm -f "$BUILDER_NAME" 2>/dev/null || true
     else
       docker buildx use "$BUILDER_NAME"
@@ -165,6 +169,7 @@ RAILS_IMAGE="${DOCKERHUB_USER}/email-priority-rails-app:latest"
 
 echo "== Docker Hub user: ${DOCKERHUB_USER} (from login or DOCKERHUB_USER) =="
 echo "== Platforms: ${PLATFORMS}  |  buildx driver: ${BUILDX_DRIVER} =="
+echo "   (from repo dir that contains this script: ${ROOT})"
 
 setup_builder
 
@@ -187,7 +192,11 @@ docker buildx build \
   .
 
 echo ""
-echo "== Done. Images are multi-arch (amd64 + arm64) on Docker Hub. =="
+if [[ "$PLATFORMS" == *","* ]]; then
+  echo "== Done. Multi-platform manifest pushed. =="
+else
+  echo "== Done. Single-platform image pushed (${PLATFORMS}). =="
+fi
 echo "Make each repository PUBLIC if others should pull without logging in:"
 echo "  https://hub.docker.com/repository/docker/${DOCKERHUB_USER}/email-priority-ml-api/settings"
 echo "  https://hub.docker.com/repository/docker/${DOCKERHUB_USER}/email-priority-rails-app/settings"

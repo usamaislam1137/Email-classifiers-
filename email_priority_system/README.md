@@ -86,7 +86,16 @@ The script reads your Docker Hub username from the `docker login` credential hel
 
 It publishes `DOCKERHUB_USER/email-priority-ml-api:latest` and `DOCKERHUB_USER/email-priority-rails-app:latest`.
 
-If `docker buildx` reports **overlay2 … input/output error**, the script now defaults to the **`docker` buildx driver** (and removes an old `docker-container` builder). You can still force the old driver with `export BUILDX_DRIVER=docker-container`. If Docker’s disk image is corrupted, use Docker Desktop → Troubleshoot → **Clean / Purge data** (or `docker system prune` after saving what you need).
+If `docker buildx` reports **overlay2 … input/output error** or **input/output error** while **exporting to image** (BuildKit/containerd), try in order:
+
+1. `git pull` so you have the latest `bin/push-dockerhub.sh` (it recreates buildx when the driver is not `docker`).
+2. `export BUILDX_PRUNE=1` then run `./bin/push-dockerhub.sh` once to prune BuildKit cache.
+3. **One platform only** (lighter): e.g. Apple Silicon: `export PUSH_PLATFORMS=linux/arm64` then `./bin/push-dockerhub.sh`. Intel/AMD Linux VM: `export PUSH_PLATFORMS=linux/amd64`.
+4. Docker Desktop → **Settings → Resources** → give more **disk**; then **Troubleshoot → Clean / Purge data** if errors continue.
+
+Run the script from the directory that **contains** `email_priority_system` (the folder with `Dockerfile.ml`), e.g. `cd path/to/Email-classifiers-/email_priority_system` — if `cd email_priority_system` fails, you are not inside the repo root that has that folder.
+
+You can still force the container driver with `export BUILDX_DRIVER=docker-container` (not recommended on Mac if you see I/O errors).
 
 **Make repositories public** (so `docker pull` works without logging in): on [Docker Hub](https://hub.docker.com) open each repository → **Settings** → **Visibility** → **Public** → Save. New repos sometimes default to private depending on account settings.
 
