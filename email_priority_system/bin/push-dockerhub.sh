@@ -146,6 +146,14 @@ setup_builder() {
       echo "== Removing named builder $BUILDER_NAME (only one 'docker' driver instance allowed) ==" >&2
       docker buildx rm -f "$BUILDER_NAME" 2>/dev/null || true
     fi
+    # buildx "default" builder is bound to the default *context*; otherwise:
+    #   ERROR: run `docker context use default` to switch to default context
+    local dctx
+    dctx="$(docker context show 2>/dev/null || true)"
+    if [[ -z "$dctx" || "$dctx" != "default" ]]; then
+      echo "== docker context use default (was: ${dctx:-unknown}) ==" >&2
+      docker context use default
+    fi
     echo "== Using buildx 'default' (docker driver) ==" >&2
     docker buildx use default
     docker buildx inspect default --bootstrap &>/dev/null || true
