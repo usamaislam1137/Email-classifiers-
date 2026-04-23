@@ -116,6 +116,63 @@ def _load_training_results() -> dict:
     return {}
 
 
+def _public_performance_fields(best_model: str, report: dict, training: dict) -> dict:
+    """
+    Headline accuracy / F1 should reflect generalisation, not an overfit test split.
+
+    When training artefacts include CV means, those are exposed as the primary
+    `accuracy` and `macro_f1` for dashboards; held-out test values are kept separately.
+    """
+    m = report.get("models", {}).get(best_model, {}) or {}
+    tr = training.get("models", {}).get(best_model, {}) or {}
+
+    test_acc = float(m.get("accuracy", 0) or 0)
+    test_f1 = float(m.get("macro_f1", 0) or 0)
+    cv_acc_m = tr.get("cv_accuracy_mean")
+    cv_acc_s = tr.get("cv_accuracy_std")
+    cv_f1_m = tr.get("cv_f1_macro_mean")
+    cv_f1_s = tr.get("cv_f1_macro_std")
+
+    has_cv = cv_f1_m is not None and cv_acc_m is not None
+    if has_cv:
+        disp_acc = float(cv_acc_m)
+        disp_f1 = float(cv_f1_m)
+        basis = "5-fold cross-validation (mean over held-out folds)"
+    else:
+        disp_acc, disp_f1 = test_acc, test_f1
+        basis = "single held-out test split (20%)"
+
+    caveats: list[str] = []
+    if has_cv and test_acc >= 0.99 and test_f1 >= 0.99 and disp_f1 < 0.92:
+        caveats.append(
+            "Some models reached ~100% on the fixed test split; headline numbers use "
+            "cross-validation, which better reflects how the model behaves on unseen data."
+        )
+    if has_cv and cv_f1_s is not None and float(cv_f1_s) < 1e-9 and float(cv_f1_m or 0) >= 0.99:
+        caveats.append(
+            "Perfect CV scores with no variation across folds usually mean severe overfitting "
+            "or labels that are almost deterministic from features—treat headline metrics cautiously."
+        )
+    if has_cv and disp_acc >= 0.99 and disp_f1 >= 0.99:
+        caveats.append(
+            "Scores are still near-perfect under cross-validation; reported class balance and "
+            "keyword-based labelling may make the task easier than real-world mail."
+        )
+
+    return {
+        "accuracy": disp_acc,
+        "macro_f1": disp_f1,
+        "performance_basis": basis,
+        "cv_accuracy_mean": cv_acc_m,
+        "cv_accuracy_std": cv_acc_s,
+        "cv_macro_f1_mean": cv_f1_m,
+        "cv_macro_f1_std": cv_f1_s,
+        "held_out_accuracy": test_acc,
+        "held_out_macro_f1": test_f1,
+        "metrics_caveat": " ".join(caveats) if caveats else None,
+    }
+
+
 # -- /health -------------------------------------------------------------------
 
 @app.route("/health", methods=["GET"])
@@ -146,11 +203,11 @@ def model_info():
     model_metrics = report.get("models", {}).get(best_model, {})
 
     training_date = training.get("training_date") or report.get("evaluation_date", "unknown")
+    perf = _public_performance_fields(best_model, report, training)
 
     return jsonify({
         "best_model": best_model,
-        "accuracy": model_metrics.get("accuracy", 0),
-        "macro_f1": model_metrics.get("macro_f1", 0),
+        **perf,
         "per_class": model_metrics.get("per_class", {}),
         "training_date": training_date,
         "evaluation_date": report.get("evaluation_date", "unknown"),
@@ -170,9 +227,17 @@ def list_models():
     models_data = {}
     for name, metrics in report.get("models", {}).items():
         training_info = training.get("models", {}).get(name, {})
+        pub = _public_performance_fields(name, report, training)
         models_data[name] = {
-            "accuracy": metrics.get("accuracy", 0),
-            "macro_f1": metrics.get("macro_f1", 0),
+            "accuracy": pub["accuracy"],
+            "macro_f1": pub["macro_f1"],
+            "held_out_accuracy": pub["held_out_accuracy"],
+            "held_out_macro_f1": pub["held_out_macro_f1"],
+            "cv_accuracy_mean": pub["cv_accuracy_mean"],
+            "cv_accuracy_std": pub["cv_accuracy_std"],
+            "cv_macro_f1_mean": pub["cv_macro_f1_mean"],
+            "cv_macro_f1_std": pub["cv_macro_f1_std"],
+            "performance_basis": pub["performance_basis"],
             "per_class": metrics.get("per_class", {}),
             "train_time_s": training_info.get("train_time_s", 0),
             "is_best": name == report.get("best_model"),

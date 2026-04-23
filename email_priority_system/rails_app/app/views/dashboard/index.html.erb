@@ -118,22 +118,29 @@
             </div>
             <div class="col-sm-6">
               <div class="bg-light rounded p-3">
-                <div class="small text-muted mb-1">Accuracy</div>
+                <div class="small text-muted mb-1">Accuracy (headline)</div>
                 <div class="fw-bold">
                   <span class="badge bg-<%= accuracy_color(@model_info[:accuracy]) %> fs-6">
                     <%= (@model_info[:accuracy].to_f * 100).round(1) %>%
                   </span>
                 </div>
+                <% if @model_info[:cv_accuracy_std].present? %>
+                  <div class="small text-muted mt-1">± <%= (@model_info[:cv_accuracy_std].to_f * 100).round(2) %>% across folds</div>
+                <% end %>
+                <div class="small text-muted mt-2"><%= @model_info[:performance_basis] %></div>
               </div>
             </div>
             <div class="col-sm-6">
               <div class="bg-light rounded p-3">
-                <div class="small text-muted mb-1">Macro F1 Score</div>
+                <div class="small text-muted mb-1">Macro F1 (headline)</div>
                 <div class="fw-bold">
                   <span class="badge bg-<%= accuracy_color(@model_info[:macro_f1]) %> fs-6">
-                    <%= @model_info[:macro_f1].to_f.round(4) %>
+                    <%= @model_info[:macro_f1].to_f.round(3) %>
                   </span>
                 </div>
+                <% if @model_info[:cv_macro_f1_std].present? %>
+                  <div class="small text-muted mt-1">± <%= @model_info[:cv_macro_f1_std].to_f.round(3) %> across folds</div>
+                <% end %>
               </div>
             </div>
             <div class="col-sm-6">
@@ -144,7 +151,21 @@
                 </div>
               </div>
             </div>
+            <% if @model_info[:cv_accuracy_mean].present? && @model_info[:held_out_accuracy].present? %>
+              <div class="col-12">
+                <div class="border rounded p-2 px-3 bg-white small text-muted">
+                  <strong class="text-secondary">Held-out test split (reference only):</strong>
+                  accuracy <%= (@model_info[:held_out_accuracy].to_f * 100).round(1) %>%, macro F1 <%= @model_info[:held_out_macro_f1].to_f.round(3) %>.
+                  Fixed splits can look optimistic when a model overfits high-dimensional features; headline metrics above prioritise cross-validation where available.
+                </div>
+              </div>
+            <% end %>
           </div>
+          <% if @model_info[:metrics_caveat].present? %>
+            <div class="alert alert-info mt-3 mb-0 small">
+              <i class="bi bi-info-circle me-1"></i><%= @model_info[:metrics_caveat] %>
+            </div>
+          <% end %>
           <% if @model_info[:needs_fallback] %>
             <div class="alert alert-warning mt-3 mb-0 small">
               <i class="bi bi-exclamation-triangle me-1"></i>

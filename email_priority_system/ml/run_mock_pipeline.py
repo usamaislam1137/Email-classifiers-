@@ -63,6 +63,10 @@ EVIDENCE_DIR   = BASE_DIR.parent.parent / "evidence"   # project-level evidence/
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 
+sys.path.insert(0, str(BASE_DIR))
+from config import ACCURACY_THRESHOLD, MACRO_F1_THRESHOLD  # noqa: E402
+from model_selection import select_best_model  # noqa: E402
+
 LABEL_NAMES    = ["critical", "high", "normal", "low"]
 RANDOM_STATE   = 42
 CV_FOLDS       = 5
@@ -496,11 +500,23 @@ def main():
         model_objects.append({"model_obj": model, "name": name, "X_test_input": x_input})
         log.info("%-25s  accuracy=%.4f  macro_f1=%.4f", name, m["accuracy"], m["macro_f1"])
 
-    # 6. Determine best model
-    best_name = max(eval_metrics, key=lambda k: eval_metrics[k]["macro_f1"])
-    best_acc  = eval_metrics[best_name]["accuracy"]
-    best_f1   = eval_metrics[best_name]["macro_f1"]
-    log.info("Best model: %s  (accuracy=%.4f  macro_f1=%.4f)", best_name, best_acc, best_f1)
+    # 6. Determine best model (CV-aware; do not pick overfit 100% test winners)
+    training_models = {r["model"]: r for r in all_train_results}
+    best_name = select_best_model(eval_metrics, training_models) or max(
+        eval_metrics, key=lambda k: eval_metrics[k]["macro_f1"]
+    )
+    tr_best = training_models.get(best_name, {})
+    best_acc = float(
+        tr_best["cv_accuracy_mean"]
+        if tr_best.get("cv_accuracy_mean") is not None
+        else eval_metrics[best_name]["accuracy"]
+    )
+    best_f1 = float(
+        tr_best["cv_f1_macro_mean"]
+        if tr_best.get("cv_f1_macro_mean") is not None
+        else eval_metrics[best_name]["macro_f1"]
+    )
+    log.info("Best model: %s  (CV accuracy=%.4f  CV macro_f1=%.4f)", best_name, best_acc, best_f1)
     (MODELS_DIR / "best_model.txt").write_text(best_name)
 
     # 7. Save JSON artefacts
@@ -512,13 +528,13 @@ def main():
         "n_features":     int(X.shape[1]),
         "random_state":   RANDOM_STATE,
         "cv_folds":       CV_FOLDS,
-        "models": {r["model"]: r for r in all_train_results},
+        "models": training_models,
     }
     eval_report = {
         "evaluation_date": datetime.datetime.now().isoformat(),
         "best_model":      best_name,
-        "needs_fallback":  best_acc < 0.75,
-        "thresholds":      {"accuracy": 0.75, "macro_f1": 0.65},
+        "needs_fallback":  best_acc < ACCURACY_THRESHOLD or best_f1 < MACRO_F1_THRESHOLD,
+        "thresholds":      {"accuracy": ACCURACY_THRESHOLD, "macro_f1": MACRO_F1_THRESHOLD},
         "models":          eval_metrics,
     }
 

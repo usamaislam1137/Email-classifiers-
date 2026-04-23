@@ -42,6 +42,7 @@ from config import (
     TFIDF_VECTORIZER_PKL,
     EVALUATION_REPORT_JSON,
     BEST_MODEL_FILE,
+    TRAINING_RESULTS_JSON,
     PRIORITY_LABEL_NAMES,
     ACCURACY_THRESHOLD,
     MACRO_F1_THRESHOLD,
@@ -51,6 +52,7 @@ from config import (
     LOG_FILE,
     LOG_LEVEL,
 )
+from model_selection import select_best_model
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -227,12 +229,14 @@ def evaluate_all() -> dict:
     X_tfidf_arr = X_tfidf.toarray() if issparse(X_tfidf) else X_tfidf
     X_combined_arr = X_combined if not issparse(X_combined) else X_combined.toarray()
 
-    _, X_tfidf_test, _, y_test = train_test_split(
-        X_tfidf_arr, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
+    # One stratified split so TF-IDF and full-matrix rows always share identical labels.
+    idx_all = np.arange(len(y))
+    _, idx_test, _, y_test = train_test_split(
+        idx_all, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
     )
-    _, X_full_test, _, y_test2 = train_test_split(
-        X_combined_arr, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
-    )
+    X_tfidf_test = X_tfidf_arr[idx_test]
+    X_full_test = X_combined_arr[idx_test]
+    y_test = np.asarray(y_test)
 
     model_results = {}
 
@@ -254,7 +258,7 @@ def evaluate_all() -> dict:
         log.info("Evaluating Random Forest ...")
         y_pred_rf = rf_model.predict(X_full_test)
         y_proba_rf = rf_model.predict_proba(X_full_test)
-        metrics_rf = _full_metrics(y_test2, y_pred_rf, y_proba_rf)
+        metrics_rf = _full_metrics(y_test, y_pred_rf, y_proba_rf)
         model_results["random_forest"] = metrics_rf
         log.info("RF  accuracy=%.4f  macro_f1=%.4f", metrics_rf["accuracy"], metrics_rf["macro_f1"])
 
@@ -264,7 +268,7 @@ def evaluate_all() -> dict:
         log.info("Evaluating XGBoost ...")
         y_pred_xgb = xgb_model.predict(X_full_test)
         y_proba_xgb = xgb_model.predict_proba(X_full_test)
-        metrics_xgb = _full_metrics(y_test2, y_pred_xgb, y_proba_xgb)
+        metrics_xgb = _full_metrics(y_test, y_pred_xgb, y_proba_xgb)
         shap_xgb = compute_shap_xgb(xgb_model, X_full_test[:200], feature_names)
         metrics_xgb["shap"] = shap_xgb
         model_results["xgboost"] = metrics_xgb
@@ -279,22 +283,34 @@ def evaluate_all() -> dict:
             log.info("BERT accuracy=%.4f  macro_f1=%.4f",
                      bert_metrics["accuracy"], bert_metrics["macro_f1"])
 
-    # -- Select best model -----------------------------------------------------
-    best_model = None
-    best_f1 = -1.0
-    for name, metrics in model_results.items():
-        f1 = metrics.get("macro_f1", 0)
-        if f1 > best_f1:
-            best_f1 = f1
-            best_model = name
+    # -- Select best model (CV-aware; avoids overfit "100%" winners) ----------
+    training_models: dict = {}
+    if TRAINING_RESULTS_JSON.exists():
+        with open(TRAINING_RESULTS_JSON) as fh:
+            training_models = json.load(fh).get("models", {})
 
-    log.info("Best model: %s (macro_f1=%.4f)", best_model, best_f1)
+    best_model = select_best_model(model_results, training_models)
+    best_tr = training_models.get(best_model, {}) if best_model else {}
+    m_best = model_results.get(best_model) or {}
+    _cv_f1 = best_tr.get("cv_f1_macro_mean")
+    best_f1 = float(_cv_f1 if _cv_f1 is not None else m_best.get("macro_f1", 0) or 0)
+    log.info(
+        "Best model (selection uses CV when available): %s (key macro_f1=%.4f)",
+        best_model,
+        best_f1,
+    )
 
-    # -- Threshold check -------------------------------------------------------
+    # -- Threshold check (prefer CV estimates for the chosen model) ----------
     needs_fallback = False
     if best_model:
-        best_acc = model_results[best_model].get("accuracy", 0)
-        best_mf1 = model_results[best_model].get("macro_f1", 0)
+        _cv_acc = best_tr.get("cv_accuracy_mean")
+        best_acc = float(
+            _cv_acc if _cv_acc is not None else model_results[best_model].get("accuracy", 0)
+        )
+        _cv_f1_t = best_tr.get("cv_f1_macro_mean")
+        best_mf1 = float(
+            _cv_f1_t if _cv_f1_t is not None else model_results[best_model].get("macro_f1", 0)
+        )
         if best_acc < ACCURACY_THRESHOLD or best_mf1 < MACRO_F1_THRESHOLD:
             needs_fallback = True
             log.warning(
