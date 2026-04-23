@@ -142,48 +142,72 @@ def _features_for_email(email: dict, vectorizer) -> np.ndarray:
     """Extract full feature vector for a single email dict."""
     try:
         import pandas as pd
-        from feature_engineering import extract_single_email_features
-        return extract_single_email_features(email, vectorizer, use_bert=False)
+        from feature_engineering import extract_single_email_features, trim_to_sklearn_meta_tfidf
+        x = extract_single_email_features(email, vectorizer, use_bert=False)
+        n_tfidf = len(vectorizer.get_feature_names_out())
+        return trim_to_sklearn_meta_tfidf(x, n_tfidf)
     except Exception as exc:
         log.warning("Feature extraction failed (%s) - using empty feature vector.", exc)
-        n_features = 5000 + 20 + 768  # approx total
+        n_features = 1500  # meta + tfidf (disk models); safe default for a failed build
         return np.zeros(n_features, dtype=np.float32)
 
 
 # -- SHAP for single prediction ------------------------------------------------
 
+def _logistic_regression_explain(
+    model, X_instance: np.ndarray, feature_names: list,
+) -> dict:
+    """Magnitude of x * w for the predicted class (aligns with meta + TF-IDF input)."""
+    x = np.asarray(X_instance, dtype=np.float64).ravel()
+    nfi = int(getattr(model, "n_features_in_", len(x)))
+    if len(x) != nfi:
+        return {}
+    if not hasattr(model, "coef_"):
+        return {}
+    coef = np.asarray(model.coef_)
+    proba = model.predict_proba(X_instance.reshape(1, -1))[0]
+    pred = int(np.argmax(proba))
+    if coef.ndim == 1:
+        imp = np.abs(x * coef)
+    else:
+        imp = np.abs(x * coef[pred])
+    top_idx = np.argsort(imp)[::-1][:10]
+    result = {}
+    for i in top_idx:
+        if i < len(imp):
+            name = feature_names[i] if i < len(feature_names) else f"feature_{i}"
+            result[str(name)] = float(imp[i])
+    return result
+
+
 def _compute_shap_single(model, model_name: str, X_instance: np.ndarray, feature_names: list) -> dict:
-    """Compute SHAP values for a single instance and return top-10 features."""
+    """Compute SHAP (or model-specific explanation) and return top-10 features."""
+    try:
+        if model_name == "logistic_regression":
+            return _logistic_regression_explain(model, X_instance, feature_names)
+    except Exception as exc:
+        log.debug("LR explanation failed: %s", exc)
+        return {}
+
     try:
         import shap
-        if model_name == "xgboost":
+        if model_name in ("random_forest", "xgboost"):
             explainer = shap.TreeExplainer(model)
             sv = explainer.shap_values(X_instance.reshape(1, -1))
             if isinstance(sv, list):
-                # Multi-class: take mean absolute across classes
                 mean_abs = np.abs(np.array(sv)).mean(axis=0)[0]
             else:
                 mean_abs = np.abs(sv[0])
-        elif model_name == "logistic_regression":
-            # Only use TF-IDF portion (first 5000 features)
-            n_tfidf = min(5000, len(X_instance))
-            X_slice = X_instance[:n_tfidf].reshape(1, -1)
-            try:
-                masker = shap.maskers.Independent(X_slice)
-                explainer = shap.LinearExplainer(model, masker)
-                sv = explainer.shap_values(X_slice)
-                mean_abs = np.abs(sv[0]) if not isinstance(sv, list) else np.abs(np.array(sv)).mean(axis=0)[0]
-                feature_names = feature_names[:n_tfidf]
-            except Exception:
-                return {}
         else:
             return {}
 
-        top_idx = np.argsort(mean_abs)[::-1][:10]
+        top_idx = np.argsort(np.asarray(mean_abs).ravel())[::-1][:10]
         result = {}
+        ma = np.asarray(mean_abs).ravel()
         for i in top_idx:
-            if i < len(feature_names):
-                result[feature_names[i]] = float(mean_abs[i])
+            if i < len(ma):
+                name = feature_names[i] if i < len(feature_names) else f"feature_{i}"
+                result[str(name)] = float(ma[i])
         return result
     except Exception as exc:
         log.debug("SHAP computation failed: %s", exc)
@@ -219,6 +243,58 @@ def _bert_predict(bert_payload: dict, email: dict) -> tuple[int, np.ndarray]:
 
 
 # -- Rule-based SHAP proxy (for fallback) -------------------------------------
+
+def _maybe_bump_urgency_from_rules(
+    email: dict, pred_idx: int, proba: np.ndarray, model_name: str
+) -> tuple[int, np.ndarray, bool]:
+    """
+    If a linear/tree model over-predicts 'normal' on clearly urgent / academic
+    phrasing, let the rule layer raise priority (keeps ML for typical mail).
+    """
+    if model_name not in ("logistic_regression", "random_forest", "xgboost"):
+        return pred_idx, proba, False
+    if pred_idx != 2:  # not "normal" in PRIORITY_LABEL_NAMES
+        return pred_idx, proba, False
+    from fallback_model import RuleBasedEmailClassifier
+    ridx, rproba = RuleBasedEmailClassifier()._classify_item(email)
+    if ridx not in (0, 1):
+        return pred_idx, proba, False
+    if float(rproba[ridx]) < 0.45:
+        return pred_idx, proba, False
+    blend = 0.55 * proba + 0.45 * rproba
+    blend = blend / blend.sum()
+    return ridx, blend, True
+
+
+def _email_text_lower(email: dict) -> str:
+    return (str(email.get("subject", "")) + " " + str(email.get("body", ""))[:2000]).lower()
+
+
+def _maybe_downgrade_distant_planning(
+    email: dict, pred_idx: int, proba: np.ndarray
+) -> tuple[int, np.ndarray]:
+    """
+    Far-future-only scheduling (e.g. "viva ... next year") is planning/reminder
+    rather than time-critical. Shift probability toward 'normal' unless near-term
+    urgency phrases are also present.
+    """
+    if pred_idx not in (0, 1):
+        return pred_idx, proba
+    from config import DISTANT_HORIZON_PHRASES, NEAR_TERM_URGENCY_PHRASES
+
+    t = _email_text_lower(email)
+    if not any(p in t for p in DISTANT_HORIZON_PHRASES):
+        return pred_idx, proba
+    if any(p in t for p in NEAR_TERM_URGENCY_PHRASES):
+        return pred_idx, proba
+    p = np.asarray(proba, dtype=np.float64).copy()
+    # Blend toward a mostly-normal distribution (low confidence in critical/high is appropriate)
+    target = np.array([0.02, 0.10, 0.78, 0.10], dtype=np.float64)
+    alpha = 0.62
+    p = (1.0 - alpha) * p + alpha * target
+    p = p / p.sum()
+    return int(np.argmax(p)), p.astype(np.float64)
+
 
 def _rule_based_shap(email: dict) -> dict:
     """Return keyword-signal explanation for rule-based classifier."""
@@ -307,7 +383,21 @@ def classify_email(email: dict) -> dict:
                 else:
                     proba = np.array([0.05, 0.15, 0.70, 0.10])
                 pred_idx = int(np.argmax(proba))
-                shap_vals = _compute_shap_single(model, model_name, X, feature_names)
+                pred_idx, proba, _ = _maybe_bump_urgency_from_rules(
+                    email, pred_idx, proba, model_name
+                )
+                names = feature_names
+                if (not names or len(names) != len(X)) and vectorizer is not None:
+                    try:
+                        from feature_engineering import feature_names_for_meta_tfidf
+                        names = feature_names_for_meta_tfidf(vectorizer)
+                    except Exception:
+                        names = list(feature_names) if feature_names else []
+                try:
+                    shap_vals = _compute_shap_single(model, model_name, X, names)
+                except Exception as shap_exc:
+                    log.debug("Post-hoc explainability skipped: %s", shap_exc)
+                    shap_vals = {}
 
     except Exception as exc:
         log.error("Inference error: %s", exc, exc_info=True)
@@ -317,6 +407,8 @@ def classify_email(email: dict) -> dict:
         pred_idx, proba = rb._classify_item(email)
         shap_vals = _rule_based_shap(email)
         model_name = "rule_based_emergency_fallback"
+
+    pred_idx, proba = _maybe_downgrade_distant_planning(email, pred_idx, proba)
 
     processing_ms = int((time.time() - t_start) * 1000)
     confidence_scores = {PRIORITY_LABEL_NAMES[i]: float(proba[i]) for i in range(4)}

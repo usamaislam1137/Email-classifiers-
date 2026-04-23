@@ -36,6 +36,8 @@ import xgboost as xgb
 import joblib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from feature_engineering import trim_feature_matrix_to_sklearn
+
 from config import (
     FEATURES_PKL,
     PROCESSED_CSV,
@@ -137,8 +139,14 @@ def _eval_metrics(y_true, y_pred) -> dict:
 # -- Model 1: Logistic Regression + TF-IDF ------------------------------------
 
 def train_logistic_regression(features: dict) -> dict:
-    log.info("=== Training Logistic Regression (TF-IDF baseline) ===")
-    X = features["X_tfidf"]
+    log.info("=== Training Logistic Regression (metadata + TF-IDF) ===")
+    from scipy.sparse import issparse
+    Xt = features["X_tfidf"]
+    if issparse(Xt):
+        Xt = Xt.toarray()
+    n_tfidf = Xt.shape[1]
+    X = np.hstack([features["X_meta"], Xt]).astype(np.float32)
+    X = trim_feature_matrix_to_sklearn(X, n_tfidf)
     y = features["y"]
 
     X_train, X_test, y_train, y_test = _train_test_split_stratified(X, y)
@@ -179,7 +187,9 @@ def train_logistic_regression(features: dict) -> dict:
 
 def train_random_forest(features: dict) -> dict:
     log.info("=== Training Random Forest (full feature matrix) ===")
-    X = features["X_combined"]
+    n_tfidf = features["n_tfidf"]
+    n_bert = int(features.get("n_bert", 0) or 0)
+    X = trim_feature_matrix_to_sklearn(features["X_combined"], n_tfidf, n_bert)
     y = features["y"]
 
     X_train, X_test, y_train, y_test = _train_test_split_stratified(X, y)
@@ -220,7 +230,9 @@ def train_random_forest(features: dict) -> dict:
 
 def train_xgboost(features: dict) -> dict:
     log.info("=== Training XGBoost (full feature matrix) ===")
-    X = features["X_combined"]
+    n_tfidf = features["n_tfidf"]
+    n_bert = int(features.get("n_bert", 0) or 0)
+    X = trim_feature_matrix_to_sklearn(features["X_combined"], n_tfidf, n_bert)
     y = features["y"]
 
     X_train, X_test, y_train, y_test = _train_test_split_stratified(X, y)

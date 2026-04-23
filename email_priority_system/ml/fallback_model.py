@@ -34,6 +34,8 @@ from config import (
     CRITICAL_KEYWORDS,
     HIGH_KEYWORDS,
     LOW_KEYWORDS,
+    DISTANT_HORIZON_PHRASES,
+    NEAR_TERM_URGENCY_PHRASES,
     PRIORITY_LABEL_NAMES,
     LOG_FILE,
     LOG_LEVEL,
@@ -93,11 +95,18 @@ class RuleBasedEmailClassifier:
         if has_re:
             high_score += 0.3
 
-        # Compute soft probabilities
+        has_distant = any(p in t for p in DISTANT_HORIZON_PHRASES)
+        has_near = any(p in t for p in NEAR_TERM_URGENCY_PHRASES)
+        if has_distant and not has_near:
+            critical_score *= 0.15
+            high_score *= 0.15
+
+        # Compute soft probabilities (keep normal baseline low so keywords can win)
+        normal_prior = 2.8 if (has_distant and not has_near) else 0.6
         raw = np.array([
             float(critical_score),
             float(high_score),
-            float(3.0),           # normal has a baseline score
+            float(normal_prior),
             float(low_score),
         ])
         raw = np.clip(raw, 0, None)

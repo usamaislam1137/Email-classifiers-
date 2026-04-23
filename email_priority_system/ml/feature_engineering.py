@@ -25,10 +25,10 @@ BERT embeddings (768):
 Output
 ------
 features.pkl - dict with keys:
-    X_tfidf        : sparse matrix (n_samples, 5000)
+    X_tfidf        : sparse matrix (n_samples, max 5000)
     X_meta         : dense array   (n_samples, n_meta_features)
-    X_bert         : dense array   (n_samples, 768)
-    X_combined     : dense array   (n_samples, 5000 + n_meta + 768)
+    X_bert         : dense array   (n_samples, 768) or 0 if use_bert=False
+    X_combined     : dense array   (n_samples, n_meta + n_tfidf [+ 768 if BERT])
     y              : array         (n_samples,)
     feature_names  : list[str]
     tfidf_vectorizer: fitted TfidfVectorizer
@@ -132,7 +132,7 @@ def extract_urgency_features(df: pd.DataFrame) -> pd.DataFrame:
         lambda t: sum(1 for kw in ALL_URGENCY_KEYWORDS if kw in t)
     )
     feats["has_deadline"] = texts.str.contains(
-        r"\b(deadline|due date|by \w+day|by eod|by end of)\b", regex=True
+        r"\b(?:deadline|due date|by \w+day|by eod|by end of)\b", regex=True
     ).astype(int)
     feats["has_question"] = df["body"].apply(
         lambda b: int("?" in str(b))
@@ -270,15 +270,18 @@ def build_feature_matrix(df: pd.DataFrame, use_bert: bool = True) -> dict:
         log.info("Building BERT embeddings ...")
         X_bert = build_bert_embeddings(df)
     else:
-        log.info("Skipping BERT embeddings (use_bert=False).")
-        X_bert = np.zeros((len(df), BERT_EMBEDDING_DIM), dtype=np.float32)
+        log.info("Skipping BERT embeddings (use_bert=False) — train on meta + TF-IDF only (no BERT block).")
+        X_bert = np.zeros((len(df), 0), dtype=np.float32)
 
     bert_feature_names = [f"bert_{i}" for i in range(X_bert.shape[1])]
 
-    # Combined: meta + tfidf + bert (dense)
+    # Combined: meta + tfidf + (optional) bert (dense)
     from scipy.sparse import issparse
     X_tfidf_dense = X_tfidf.toarray() if issparse(X_tfidf) else X_tfidf
-    X_combined = np.hstack([X_meta, X_tfidf_dense, X_bert]).astype(np.float32)
+    if X_bert.shape[1] > 0:
+        X_combined = np.hstack([X_meta, X_tfidf_dense, X_bert]).astype(np.float32)
+    else:
+        X_combined = np.hstack([X_meta, X_tfidf_dense]).astype(np.float32)
     feature_names = meta_feature_names + tfidf_feature_names + bert_feature_names
 
     y = df["priority"].values.astype(int)
@@ -300,6 +303,60 @@ def build_feature_matrix(df: pd.DataFrame, use_bert: bool = True) -> dict:
         "n_tfidf": X_tfidf.shape[1],
         "n_bert": X_bert.shape[1],
     }
+
+
+# -- Shipped sklearn models: 16 meta+urgency + TF-IDF (16 + 1444 = 1460) ------
+# Current extract produces 15 meta + 6 urgency; we use 10 "base" meta + 6 urgency
+# (excludes re/fw / reply/forward/forward_count features that were not in the training run).
+
+
+def _meta_urg_21_to_16(row21: np.ndarray) -> np.ndarray:
+    r = np.asarray(row21, dtype=np.float32).ravel()
+    if r.size < 21:
+        return r
+    return np.concatenate([r[:10], r[15:21]]).astype(np.float32)
+
+
+def trim_to_sklearn_meta_tfidf(
+    x_combined: np.ndarray,
+    n_tfidf: int,
+) -> np.ndarray:
+    """
+    If x_combined is [21 + n_tfidf] (new layout), project to [16 + n_tfidf] to match
+    shipped .pkl classifiers. If already 16+n_tfidf, return as-is.
+    """
+    x = np.asarray(x_combined, dtype=np.float32).ravel()
+    d = x.size
+    if d == 16 + n_tfidf:
+        return x
+    if d == 21 + n_tfidf:
+        m = x[:21]
+        t = x[21:]
+        m16 = _meta_urg_21_to_16(m)
+        return np.concatenate([m16, t]).astype(np.float32)
+    return x
+
+
+def trim_feature_matrix_to_sklearn(
+    X: np.ndarray, n_tfidf: int, n_bert: int = 0,
+) -> np.ndarray:
+    """Batch form: trim 21→16 meta columns; keep TF-IDF and optional BERT tail."""
+    X = np.asarray(X, dtype=np.float32)
+    if n_bert:
+        if X.shape[1] == 16 + n_tfidf + n_bert:
+            return X
+        if X.shape[1] == 21 + n_tfidf + n_bert:
+            m, rest = X[:, :21], X[:, 21:]
+            m16 = np.hstack([m[:, :10], m[:, 15:21]])
+            return np.hstack([m16, rest]).astype(np.float32)
+        return X
+    if X.shape[1] == 16 + n_tfidf:
+        return X
+    if X.shape[1] == 21 + n_tfidf:
+        m, t = X[:, :21], X[:, 21:]
+        m16 = np.hstack([m[:, :10], m[:, 15:21]])
+        return np.hstack([m16, t]).astype(np.float32)
+    return X
 
 
 # -- Single-email feature extraction (for inference) --------------------------
@@ -365,10 +422,45 @@ def extract_single_email_features(
     if use_bert:
         X_bert = build_bert_embeddings(df)
     else:
-        X_bert = np.zeros((1, BERT_EMBEDDING_DIM), dtype=np.float32)
+        # Match disk models: [meta, TF-IDF] only (no 768-dim BERT padding).
+        X_bert = np.zeros((1, 0), dtype=np.float32)
 
-    X_combined = np.hstack([X_meta, X_tfidf_dense, X_bert]).astype(np.float32)
+    if X_bert.shape[1] > 0:
+        X_combined = np.hstack([X_meta, X_tfidf_dense, X_bert]).astype(np.float32)
+    else:
+        X_combined = np.hstack([X_meta, X_tfidf_dense]).astype(np.float32)
     return X_combined[0]
+
+
+def feature_names_for_meta_tfidf(vectorizer) -> list[str]:
+    """
+    Ordered feature names (16 + n_tfidf) matching shipped sklearn / trim_to_sklearn_meta_tfidf.
+    """
+    df0 = pd.DataFrame(
+        [
+            {
+                "sender": "a@b.com",
+                "recipients": "c@d.com",
+                "subject": "subj",
+                "body": "body",
+                "cc": "",
+                "bcc": "",
+                "hour_of_day": 12,
+                "day_of_week": 1,
+                "recipient_count": 1,
+                "has_cc": 0,
+                "has_bcc": 0,
+                "subject_has_re": 0,
+                "subject_has_fw": 0,
+            }
+        ]
+    )
+    meta_c = extract_metadata_features(df0)
+    ur_c = extract_urgency_features(df0)
+    full = pd.concat([meta_c, ur_c], axis=1)
+    n21 = full.columns.tolist()
+    n16 = n21[0:10] + n21[15:21]
+    return n16 + list(vectorizer.get_feature_names_out())
 
 
 # -- Persistence ---------------------------------------------------------------

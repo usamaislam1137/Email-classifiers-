@@ -1,6 +1,6 @@
 {
   "evaluation_date": "2026-04-05T17:51:03.614551",
-  "best_model": "random_forest",
+  "best_model": "logistic_regression",
   "needs_fallback": false,
   "thresholds": {
     "accuracy": 0.75,
