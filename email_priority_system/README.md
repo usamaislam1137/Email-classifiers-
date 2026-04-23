@@ -97,6 +97,8 @@ Run the script from the directory that **contains** `email_priority_system` (the
 
 You can still force the container driver with `export BUILDX_DRIVER=docker-container` (not recommended on Mac if you see I/O errors).
 
+**`additional instances of driver "docker" cannot be created`:** Docker only allows a single buildx instance with the `docker` driver. The script now uses the **`default`** builder in that case (it removes the old `email-priority-multiarch` builder if present). It does **not** create a second `docker` builder.
+
 **Make repositories public** (so `docker pull` works without logging in): on [Docker Hub](https://hub.docker.com) open each repository → **Settings** → **Visibility** → **Public** → Save. New repos sometimes default to private depending on account settings.
 
 **Pull and run** on another machine (clone the repo so `./ml/data` and `./ml/models` exist for volume mounts):

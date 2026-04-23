@@ -136,10 +136,25 @@ setup_builder() {
     echo "== buildx prune (clears bad BuildKit cache; helps input/output on export) ==" >&2
     docker buildx prune -af 2>/dev/null || true
   fi
+
+  if [[ "$BUILDX_DRIVER" == "docker" ]]; then
+    # Docker only allows ONE buildx instance with the "docker" driver. Creating
+    # a second (e.g. "email-priority-multiarch") fails with:
+    #   additional instances of driver "docker" cannot be created
+    # So we always use the default builder for driver=docker; drop a stale named one.
+    if docker buildx inspect "$BUILDER_NAME" &>/dev/null; then
+      echo "== Removing named builder $BUILDER_NAME (only one 'docker' driver instance allowed) ==" >&2
+      docker buildx rm -f "$BUILDER_NAME" 2>/dev/null || true
+    fi
+    echo "== Using buildx 'default' (docker driver) ==" >&2
+    docker buildx use default
+    docker buildx inspect default --bootstrap &>/dev/null || true
+    return
+  fi
+
   if docker buildx inspect "$BUILDER_NAME" &>/dev/null; then
     local cur
     cur="$(docker buildx inspect "$BUILDER_NAME" -f '{{.Driver}}' 2>/dev/null | tr -d '\r\n' || true)"
-    # Recreate if driver does not match (e.g. still docker-container while we want docker)
     if [[ -z "$cur" || "$cur" != "$BUILDX_DRIVER" ]]; then
       echo "== Recreating buildx (was driver: ${cur:-?}, want: $BUILDX_DRIVER) ==" >&2
       docker buildx rm -f "$BUILDER_NAME" 2>/dev/null || true
@@ -168,7 +183,11 @@ ML_IMAGE="${DOCKERHUB_USER}/email-priority-ml-api:latest"
 RAILS_IMAGE="${DOCKERHUB_USER}/email-priority-rails-app:latest"
 
 echo "== Docker Hub user: ${DOCKERHUB_USER} (from login or DOCKERHUB_USER) =="
-echo "== Platforms: ${PLATFORMS}  |  buildx driver: ${BUILDX_DRIVER} =="
+if [[ "$BUILDX_DRIVER" == "docker" ]]; then
+  echo "== Platforms: ${PLATFORMS}  |  buildx: default (only one 'docker' driver; see script comments) =="
+else
+  echo "== Platforms: ${PLATFORMS}  |  buildx driver: ${BUILDX_DRIVER} (builder: ${BUILDER_NAME}) =="
+fi
 echo "   (from repo dir that contains this script: ${ROOT})"
 
 setup_builder
