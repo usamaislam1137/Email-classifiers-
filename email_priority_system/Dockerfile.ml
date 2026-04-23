@@ -1,3 +1,7 @@
+# syntax=docker/dockerfile:1.4
+# Cache mount for pip (build) avoids temp-dir cleanup failures under Buildx / QEMU
+# (OSError: [Errno 30] Read-only file system on .whl during pip cleanup)
+
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -9,9 +13,15 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies (slim set — no torch/transformers — smaller/faster builds)
-COPY ml/requirements-docker.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    TMPDIR=/tmp
+
+# Install Python dependencies
+COPY ml/requirements.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade "pip>=24.2" "setuptools>=70" "wheel" && \
+    pip install -r requirements.txt
 
 # Download NLTK data
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords'); nltk.download('wordnet')"
