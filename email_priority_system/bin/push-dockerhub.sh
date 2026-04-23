@@ -20,6 +20,10 @@ cd "${ROOT}"
 
 PLATFORMS="linux/amd64,linux/arm64"
 BUILDER_NAME="email-priority-multiarch"
+# docker-container driver uses a separate BuildKit container; its overlay2 store can get
+# I/O errors (e.g. "open .../overlay2/.../lower: input/output error"). Default is "docker"
+# (main Docker engine). Override: export BUILDX_DRIVER=docker-container
+BUILDX_DRIVER="${BUILDX_DRIVER:-docker}"
 
 detect_dockerhub_user() {
   if [[ -n "${DOCKERHUB_USER:-}" ]]; then
@@ -128,14 +132,23 @@ PY
 
 setup_builder() {
   if docker buildx inspect "$BUILDER_NAME" &>/dev/null; then
-    docker buildx use "$BUILDER_NAME"
-  else
-    docker buildx create \
-      --name "$BUILDER_NAME" \
-      --driver docker-container \
-      --use \
-      --bootstrap
+    local cur
+    cur="$(docker buildx inspect "$BUILDER_NAME" -f '{{.Driver}}' 2>/dev/null || true)"
+    # docker-container driver uses a separate BuildKit image; its overlay2 can I/O error.
+    # Migrate to plain "docker" driver unless user set BUILDX_DRIVER=docker-container.
+    if [[ "$cur" == *"docker-container"* && "$BUILDX_DRIVER" == "docker" ]]; then
+      echo "== Replacing buildx builder (drop docker-container → docker; fixes overlay2 I/O errors) ==" >&2
+      docker buildx rm -f "$BUILDER_NAME" 2>/dev/null || true
+    else
+      docker buildx use "$BUILDER_NAME"
+      return
+    fi
   fi
+  docker buildx create \
+    --name "$BUILDER_NAME" \
+    --driver "$BUILDX_DRIVER" \
+    --use \
+    --bootstrap
 }
 
 HUB_USER="$(detect_dockerhub_user || true)"
@@ -151,7 +164,7 @@ ML_IMAGE="${DOCKERHUB_USER}/email-priority-ml-api:latest"
 RAILS_IMAGE="${DOCKERHUB_USER}/email-priority-rails-app:latest"
 
 echo "== Docker Hub user: ${DOCKERHUB_USER} (from login or DOCKERHUB_USER) =="
-echo "== Platforms: ${PLATFORMS} =="
+echo "== Platforms: ${PLATFORMS}  |  buildx driver: ${BUILDX_DRIVER} =="
 
 setup_builder
 

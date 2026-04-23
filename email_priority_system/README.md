@@ -60,8 +60,6 @@ cd email_priority_system
 docker compose up --build
 ```
 
-The ML image installs **`ml/requirements-docker.txt`** (no PyTorch/Hugging Face) so the API image stays small; full training still uses **`ml/requirements.txt`** on your machine. If a build fails with **“no space left on device”**, free space: Docker Desktop → Settings → Resources → Disk image size, and run `docker system prune` / `docker builder prune` (removes unused layers).
-
 The Rails image runs `rails db:prepare` on every container start (see `rails_app/bin/docker-entrypoint`) so the SQLite database exists on the named Docker volume. An empty volume would otherwise hide the database files from the image build.
 
 To **re-train** inside the ML container instead:
@@ -87,6 +85,8 @@ cd email_priority_system
 The script reads your Docker Hub username from the `docker login` credential helper. To override: `export DOCKERHUB_USER=yourhublogin` then run the script.
 
 It publishes `DOCKERHUB_USER/email-priority-ml-api:latest` and `DOCKERHUB_USER/email-priority-rails-app:latest`.
+
+If `docker buildx` reports **overlay2 … input/output error**, the script now defaults to the **`docker` buildx driver** (and removes an old `docker-container` builder). You can still force the old driver with `export BUILDX_DRIVER=docker-container`. If Docker’s disk image is corrupted, use Docker Desktop → Troubleshoot → **Clean / Purge data** (or `docker system prune` after saving what you need).
 
 **Make repositories public** (so `docker pull` works without logging in): on [Docker Hub](https://hub.docker.com) open each repository → **Settings** → **Visibility** → **Public** → Save. New repos sometimes default to private depending on account settings.
 
