@@ -4,6 +4,8 @@ Configuration for Email Priority Classification System.
 import os
 from pathlib import Path
 
+from keyword_loader import load_keyword_lines, merge_keywords
+
 # -- Base paths ----------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -59,10 +61,9 @@ PRIORITY_LABEL_NAMES = ["critical", "high", "normal", "low"]
 NUM_CLASSES = 4
 
 # -- Keyword lists (semi-supervised + rule fallback) --------------------------
-# Expanded with common business, security, compliance, academic, and ops phrasing
-# (aligned with typical “high importance” / triage / bulk-mail heuristics).
+# Cores below merge with data/keywords/*.txt (see keyword_corpora.py).
 
-CRITICAL_KEYWORDS = [
+_CRITICAL_CORE = [
     # Urgency / response
     "urgent", "asap", "a.s.a.p.", "immediately", "right now", "without delay",
     "critical", "crisis", "emergency", "emergent", "code red",
@@ -86,8 +87,19 @@ CRITICAL_KEYWORDS = [
     "do not forward", "eyes only",
     # Academic (imminent / formal)
     "viva", "defense", "examination", "oral exam", "resit", "plagiarism hearing",
+    "misconduct investigation", "academic misconduct", "exam board", "appeals panel",
+    # Subject-line cues (marketing + triage heuristics)
+    "[urgent]", "[critical]", "(urgent)", "action needed:", "action required:",
+    "response needed:", "respond by cob", "expires today", "expires tonight",
+    "last chance", "hours left:", "minutes left:",
+    # IT / abuse follow-through
+    "zero-day", "cve-", "phishing simulation", "phishing test mandatory",
+    "password expiry", "password expir", "credentials expiring", "suspend your account unless",
+    # HR / disciplinary (time-critical)
+    "disciplinary hearing", "grievance hearing", "without prejudice", "p45", "termination effective",
 ]
-HIGH_KEYWORDS = [
+
+_HIGH_CORE = [
     # Priority / follow-up
     "important", "important update", "priority", "response requested", "rsvp",
     "please respond", "your reply", "awaiting your reply", "follow up", "follow-up", "circling back",
@@ -118,14 +130,47 @@ HIGH_KEYWORDS = [
     "hr ", "human resources", "background check", "reference check", "offer letter", "relocation",
     "ticket #", "case #", "incident #", "change request", "jira", "servicenow", "azure devops",
     "downtime", "maintenance window", "deployment", "release", "patch",
+    # Support escalation / SLA (internal + B2B)
+    "sla breach", "breached sla", "customer escalated", "escalated to",
+    "vip customer", "sev ", "severity 2", "severity two", "p2 incident",
+    "complaint ref", "formal complaint", "ombudsman", "sar request", "dsar",
+    # Commercial / legal-lite
+    "binding offer", "letter of intent", "term sheet", "settlement proposal",
+    "counter-sign by", "please countersign",
     # Academic
     "viva", "defense", "thesis", "dissertation", "supervisor", "m.sc", "msc", "ms.c", "phd", "ph.d",
     "module", "credits", "tutor", "lecturer", "coursework", "assignment", "bursar", "registrar",
     "enrollment", "re-enroll", "re-enrol", "extension", "turnitin", "peer review", "submission", "re-submit",
+    # Academic supervision & requests (dissertation-focused)
+    "dear supervisor", "dear professor", "dear dr.", "chair of examiners",
+    "doctoral", "doctoral college", "pgt", "pgr", "graduate school", "registry",
+    "manuscript", "draft chapter", "chapter draft", "full draft", "near-final draft",
+    "tracked changes", "track changes", "comments in margin", "address the comments",
+    "revise and resubmit", "major revision", "minor revision", "r&r",
+    "reviewer's report", "reviewer feedback", "referee", "journal editor",
+    "submission deadline", "camera-ready", "copy-editing", "proof corrections",
+    "ethics approval", "irec", "irb approval", "data management plan", "open access fee",
+    "similarity score", "originality report", "ai-generated text detected",
+    "ethics referral", "formative assessment", "summative assessment",
+    "mitigating circumstances", "extenuating", "deferral request", "defer your studies",
+    "interruption of study", "authorised absence", "unauthorised absence warning",
+    "second marker", "internal examiner", "external examiner",
+    "oral defence", "defence date", "defense date",
+    # Softer-but-important supervisor phrasing (still actionable)
+    "gentle reminder", "friendly reminder", "second reminder", "third reminder",
+    "haven't heard back", "awaiting feedback", "when you get a chance to review",
+    "please circulate", "for your signatures", "co-supervisor", "secondary supervisor",
+    "confirmation of supervisor", "change of supervisor", "ethical clearance",
+    "hard copy", "binding", "deposit library", "ethesis",
+    # Student finance / visas (often date-driven)
+    "tuition instalment", "tuition overdue", "sfe", "student finance", "visa expiry",
+    "cas number", "atlas", "brp", "right to study", "sponsorship withdrawn",
     # Time-bound (scheduling; model may disambiguate)
     "appointment reminder", "clinic", "dental", "surgery", "hr meeting",
+    "parents evening", "open day briefing", "induction session", "exam timetable",
 ]
-LOW_KEYWORDS = [
+
+_LOW_CORE = [
     # FYI / no action
     "fyi", "f.y.i", "for your information", "for info only", "no action required", "no action needed",
     # Opt-out & bulk senders
@@ -159,7 +204,32 @@ LOW_KEYWORDS = [
     "notification", "noreply@", "no-reply@", "news@", "marketing@", "promo@",
     "this message was sent to", "you are receiving this",
     "disclaimer:", "legal disclaimer", "unsubscribe at the bottom",
+    # Noise / marketing / social (extra coverage)
+    "you might also like", "customers also viewed", "recommended for you",
+    "flash deal", "mega sale", "doorbuster", "tiered discount", "earn points",
+    "loyalty points balance", "reward expiring", "birthday offer", "anniversary email",
+    "holiday hours", "season's greetings", "happy new year from", "eoy wrap-up",
+    "download our app", "get the app", "install chrome extension",
+    "github actions summary", "weekly summary from", "slack digest", "teams digest",
+    "notion weekly", "asana summary", "clickup notification", "non-urgent:",
+    "low priority notification", "muted thread", "muted channel",
 ]
+
+_NORMAL_CORE = [
+    # Hand-picked “routine professional” phrases (merged with data/keywords/normal.txt)
+    "quick update", "brief note", "sharing for awareness", "looping you in",
+    "no action from you", "informational only", "context only", "background only",
+    "for visibility", "fyi only", "nothing blocking", "not blocking",
+    "carried over from last week", "as discussed offline", "per our call",
+    "slides attached from", "minutes from the", "summary of the call",
+    "low priority note", "routine check-in", "standing agenda item",
+]
+
+_KEYWORD_DIR = DATA_DIR / "keywords"
+CRITICAL_KEYWORDS = merge_keywords(_CRITICAL_CORE, load_keyword_lines(_KEYWORD_DIR / "critical.txt"))
+HIGH_KEYWORDS = merge_keywords(_HIGH_CORE, load_keyword_lines(_KEYWORD_DIR / "high.txt"))
+NORMAL_KEYWORDS = merge_keywords(_NORMAL_CORE, load_keyword_lines(_KEYWORD_DIR / "normal.txt"))
+LOW_KEYWORDS = merge_keywords(_LOW_CORE, load_keyword_lines(_KEYWORD_DIR / "low.txt"))
 
 # -- Far-future planning (de-prioritise vs. immediate deadlines) ----------------
 # If these appear and there is no near-term urgency, treat as normal/low planning mail.

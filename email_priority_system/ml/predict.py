@@ -298,7 +298,7 @@ def _maybe_downgrade_distant_planning(
 
 def _rule_based_shap(email: dict) -> dict:
     """Return keyword-signal explanation for rule-based classifier."""
-    from config import CRITICAL_KEYWORDS, HIGH_KEYWORDS, LOW_KEYWORDS
+    from config import CRITICAL_KEYWORDS, HIGH_KEYWORDS, NORMAL_KEYWORDS, LOW_KEYWORDS
     text = (str(email.get("subject", "")) + " " + str(email.get("body", ""))[:500]).lower()
     signals = {}
     for kw in CRITICAL_KEYWORDS:
@@ -307,6 +307,9 @@ def _rule_based_shap(email: dict) -> dict:
     for kw in HIGH_KEYWORDS:
         if kw in text:
             signals[f"high_keyword:{kw}"] = 0.5
+    for kw in NORMAL_KEYWORDS:
+        if kw in text:
+            signals[f"normal_keyword:{kw}"] = 0.35
     for kw in LOW_KEYWORDS:
         if kw in text:
             signals[f"low_keyword:{kw}"] = 0.3

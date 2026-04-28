@@ -33,6 +33,7 @@ from config import (
     MACRO_F1_THRESHOLD,
     CRITICAL_KEYWORDS,
     HIGH_KEYWORDS,
+    NORMAL_KEYWORDS,
     LOW_KEYWORDS,
     DISTANT_HORIZON_PHRASES,
     NEAR_TERM_URGENCY_PHRASES,
@@ -67,6 +68,7 @@ class RuleBasedEmailClassifier:
 
     CRITICAL_KWS = CRITICAL_KEYWORDS
     HIGH_KWS = HIGH_KEYWORDS
+    NORMAL_KWS = NORMAL_KEYWORDS
     LOW_KWS = LOW_KEYWORDS
     CSUITE = ["ceo", "cfo", "coo", "cto", "president", "chairman", "vp", "svp", "evp"]
 
@@ -78,6 +80,8 @@ class RuleBasedEmailClassifier:
 
         critical_score = sum(2 if kw in t else 0 for kw in self.CRITICAL_KWS)
         high_score = sum(1 if kw in t else 0 for kw in self.HIGH_KWS)
+        normal_kw_hits = sum(1 if kw in t else 0 for kw in self.NORMAL_KWS)
+        normal_kw_hits = min(normal_kw_hits, 120)  # cap so lists can be huge without domination
         low_score = sum(1 if kw in t else 0 for kw in self.LOW_KWS)
 
         # Structural signals
@@ -103,6 +107,7 @@ class RuleBasedEmailClassifier:
 
         # Compute soft probabilities (keep normal baseline low so keywords can win)
         normal_prior = 2.8 if (has_distant and not has_near) else 0.6
+        normal_prior += float(normal_kw_hits) * 0.18
         raw = np.array([
             float(critical_score),
             float(high_score),

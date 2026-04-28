@@ -24,6 +24,7 @@ module EmailClassifier
 
     # -- Time zone ------------------------------------------------------------
     config.time_zone = "UTC"
+    config.hosts << "personals-starsmerchant-section-lanka.trycloudflare.com"
     config.active_record.default_timezone = :utc
 
     # -- Encoding -------------------------------------------------------------
