@@ -12,7 +12,24 @@
 #   export DOCKERHUB_USER=myhublogin
 #   ./bin/push-dockerhub.sh
 #
+# Multi-arch: the default "docker" driver often cannot build multi-platform manifests.
+# Use one platform (example: Apple Silicon Mac):
+#   PUSH_PLATFORMS=linux/arm64 ./bin/push-dockerhub.sh
+# Or enable containerd image store / use buildx docker-container driver for amd64+arm64.
+#
+# If push fails with "unauthorized: authentication required", run: docker login
+#
 set -euo pipefail
+
+# Default to host arch when not set (single-platform push works with docker driver)
+if [[ -z "${PUSH_PLATFORMS:-}" ]] && [[ "${BUILDX_DRIVER:-docker}" == "docker" ]]; then
+  arch="$(uname -m 2>/dev/null || true)"
+  if [[ "$arch" == "arm64" ]]; then
+    export PUSH_PLATFORMS=linux/arm64
+  elif [[ "$arch" == "x86_64" ]] || [[ "$arch" == "amd64" ]]; then
+    export PUSH_PLATFORMS=linux/amd64
+  fi
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
