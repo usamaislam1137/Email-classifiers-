@@ -308,7 +308,8 @@ MACRO_F1_THRESHOLD = 0.65
 
 # -- Flask API settings --------------------------------------------------------
 FLASK_HOST = "0.0.0.0"
-FLASK_PORT = 5000
+# Local dev default 5001: macOS often binds :5000 to AirPlay (ControlCenter). Docker sets FLASK_PORT=5000.
+FLASK_PORT = int(os.environ.get("FLASK_PORT", "5001"))
 FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
 # -- HuggingFace fallback ------------------------------------------------------

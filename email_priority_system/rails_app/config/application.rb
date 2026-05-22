@@ -21,6 +21,7 @@ module EmailClassifier
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 7.2
+    config.hosts << "paver-crawlers-overspend.ngrok-free.dev"
 
     # -- Time zone ------------------------------------------------------------
     config.time_zone = "UTC"

@@ -34,6 +34,7 @@ RUN mkdir -p data models
 
 EXPOSE 5000
 
+ENV FLASK_PORT=5000
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 
